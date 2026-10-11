@@ -100,6 +100,7 @@ class Finding(models.Model):
     ordem_relatorio = models.PositiveSmallIntegerField(null=True, blank=True)
     editado_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     editado_em = models.DateTimeField(null=True, blank=True)
+    texto_editado = models.BooleanField(default=False, help_text="O analista reescreveu título, impacto ou melhoria")
 
     SEVERITY_ORDER = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3}
 

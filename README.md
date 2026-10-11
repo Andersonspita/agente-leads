@@ -120,7 +120,7 @@ A IA usa *structured outputs* (JSON validado por schema, uma nova tentativa se v
 
 ```bash
 cd backend
-../.venv/Scripts/python -m pytest --cov=apps       # 82 testes
+../.venv/Scripts/python -m pytest --cov=apps       # 87 testes, 82% de cobertura
 cd ../frontend && npm run build                     # type-check + build
 ```
 
@@ -136,7 +136,7 @@ Os testes cobrem pontuação, deduplicação, as regras automáticas, a API (2FA
 | RF06 nota 0–100 com pesos por categoria | Pronto (`engine/scoring.py`, fórmula do TRD 2.4) |
 | RF07 confirmar/editar/descartar achados | Pronto (tela de revisão com atalhos C/E/D/J/K) |
 | RF08 relatório com link expirável + PDF com a marca | Pronto (token de 32 bytes, 60 dias, revogação) |
-| RF09 briefing (PDF/Markdown) | Pronto em Markdown; editável na tela |
+| RF09 briefing (PDF/Markdown) | Pronto: PDF com a marca e Markdown; editável na tela |
 | RF10 comparativo com até 5 concorrentes | Pronto |
 | RF11 rastreio de abertura | Pronto (IP guardado só como hash) |
 | RF12 categorias, pesos e checklist | Pronto |
@@ -145,6 +145,16 @@ Os testes cobrem pontuação, deduplicação, as regras automáticas, a API (2FA
 | 8 dimensões e ~40 regras | Pronto (`engine/rules.py`) |
 | Relatório público com Lighthouse ≥ 95 | Desempenho 100, Acessibilidade 100, Boas práticas 100. SEO 66, só porque o relatório é `noindex` de propósito (é privado do prospect) |
 | Política de privacidade e página de exclusão | `/privacidade` e `/exclusao-de-dados`; exclusão completa pelo botão na ficha do lead |
+
+### Desempenho medido (base local da Bahia, Vitória da Conquista)
+
+- Busca: advocacia (293 empresas) em ~1 s; dentistas (382) em ~1,5 s; salões de beleza (1.954) em ~8,5 s.
+- Auditoria: ~45 s a 3 min, conforme o site e o número de execuções do Lighthouse.
+- O Painel mostra as metas do PRD 1.2 calculadas com os dados reais (busca, auditoria, propostas aceitas, site novo vs. antigo, tempo até o relatório e achados de IA aceitos sem reescrita).
+
+### Site que bloqueia o robô
+
+Na auditoria que falhou, use **Fazer a auditoria manualmente**: envie as capturas (computador e celular), conclua como manual e adicione os achados na revisão. O relatório sai normalmente, sem nota automática.
 
 ### Pendências que dependem de vocês
 

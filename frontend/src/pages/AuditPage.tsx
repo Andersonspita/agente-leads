@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, ClipboardCheck, FileBarChart, RefreshCw, Sparkles } from "lucide-react";
+import { BarChart3, ClipboardCheck, FileBarChart, Loader2, RefreshCw, Sparkles, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -107,6 +107,13 @@ export default function AuditPage() {
           </Card>
         )}
 
+        {a.status === "falhou" && <ManualAudit audit={a} />}
+        {a.status === "concluida" && a.metricas.manual && (
+          <p className="rounded-md bg-surface-2 px-4 py-2 text-sm text-muted">
+            Auditoria manual: o site bloqueou o robô, então as capturas e os achados foram registrados pelo analista e não há nota automática.
+          </p>
+        )}
+
         {a.status === "concluida" && (
           <>
             <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
@@ -167,6 +174,9 @@ export default function AuditPage() {
                   title="Capturas"
                   description="Desktop 1440 px e celular 390 px"
                   actions={
+                    <div className="flex items-center gap-1">
+                      <UploadCapture auditId={a.id} kind="desktop" label="Enviar desktop" />
+                      <UploadCapture auditId={a.id} kind="mobile" label="Enviar celular" />
                     <Tabs
                       value={shotTab}
                       onChange={setShotTab}
@@ -175,6 +185,7 @@ export default function AuditPage() {
                         { value: "inteira", label: "Página inteira" },
                       ]}
                     />
+                    </div>
                   }
                 />
                 <div className="grid grid-cols-[1fr_minmax(0,0.38fr)] gap-3 p-4">
@@ -230,6 +241,69 @@ export default function AuditPage() {
         )}
       </PageBody>
     </>
+  );
+}
+
+function UploadCapture({ auditId, kind, label }: { auditId: number; kind: "desktop" | "mobile"; label: string }) {
+  const client = useQueryClient();
+  const toast = useToast();
+  const upload = useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData();
+      fd.append("tipo", kind);
+      fd.append("arquivo", file);
+      return api.post(`audits/${auditId}/upload_capture`, fd);
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["audit", String(auditId)] });
+      toast("Captura enviada.");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+  return (
+    <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-medium hover:bg-surface-2" title="PNG, JPG ou WEBP até 10 MB">
+      {upload.isPending ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <Upload className="size-3.5" aria-hidden />}
+      {label}
+      <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])} />
+    </label>
+  );
+}
+
+function ManualAudit({ audit }: { audit: AuditDetail }) {
+  const client = useQueryClient();
+  const toast = useToast();
+  const finish = useMutation({
+    mutationFn: () => api.post(`audits/${audit.id}/finish_manual`),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["audit", String(audit.id)] });
+      toast("Auditoria concluída como manual. Adicione os achados na revisão.");
+    },
+    onError: (e) => toast(e.message, "error"),
+  });
+  const shot = (t: string) => audit.artifacts.find((x) => x.tipo === t);
+  return (
+    <Card>
+      <CardHeader
+        title="Fazer a auditoria manualmente"
+        description="Quando o site bloqueia o robô (Cloudflare, captcha), registre as capturas, conclua como manual e adicione os achados na revisão. O relatório sai normalmente, sem nota automática."
+        actions={
+          <Button onClick={() => finish.mutate()} loading={finish.isPending}>
+            Concluir como auditoria manual
+          </Button>
+        }
+      />
+      <div className="grid gap-4 p-4 sm:grid-cols-2">
+        {(["desktop", "mobile"] as const).map((kind) => (
+          <div key={kind} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">{kind === "desktop" ? "Captura do computador" : "Captura do celular"}</span>
+              <UploadCapture auditId={audit.id} kind={kind} label="Enviar" />
+            </div>
+            <ScreenshotAnnotated artifact={shot(`screenshot_${kind}`)} alt={`Captura ${kind} enviada pelo analista`} maxHeight={260} />
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 

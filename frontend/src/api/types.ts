@@ -248,6 +248,7 @@ export interface AuditDetail extends AuditListItem {
     cms?: string | null;
     paginas_rastreadas?: number;
     violacoes_acessibilidade?: Record<string, number> | null;
+    manual?: boolean;
   };
   versao_regras: string;
   versao_prompt: string;
@@ -329,6 +330,7 @@ export interface Dashboard {
   auditorias_em_andamento: { id: number; empresa: string; status: string; criado_em: string }[];
   semana: { auditorias: number; relatorios_enviados: number; relatorios_abertos: number; leads_novos: number };
   revisao_pendente: number;
+  metas: { chave: string; nome: string; valor: string; meta: string; ok: boolean | null; amostra: string }[];
   custos: {
     gasto_mes: number;
     teto_mes: number;

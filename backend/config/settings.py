@@ -95,7 +95,12 @@ DATABASES = {
 IS_POSTGRES = DATABASES["default"]["ENGINE"].endswith("postgresql")
 if DATABASES["default"]["ENGINE"].endswith("sqlite3"):
     # SQLite de desenvolvimento: espera até 30 s por um lock em vez de falhar com "database is locked".
-    DATABASES["default"].setdefault("OPTIONS", {})["timeout"] = 30
+    DATABASES["default"].setdefault("OPTIONS", {}).update({
+        "timeout": 30,
+        # WAL: leituras não bloqueiam gravações; synchronous=NORMAL evita um fsync caro a cada commit.
+        "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;",
+        "transaction_mode": "IMMEDIATE",
+    })
 
 AUTH_USER_MODEL = "accounts.User"
 AUTH_PASSWORD_VALIDATORS = [
@@ -204,7 +209,7 @@ MONTHLY_API_BUDGET_BRL = float(os.getenv("MONTHLY_API_BUDGET_BRL", "500"))
 # Rastreamento responsável (PRD 1.6 / TRD 2.7)
 CRAWLER_USER_AGENT = os.getenv(
     "CRAWLER_USER_AGENT",
-    "AuditorDeSitesBot/1.0 (+https://lopesconsultoria.cnt.br/robo; auditoria de sites publicos)",
+    "AuditorDeSitesBot/1.0 (Horizon AJ Desenvolvimento; auditoria de sites publicos)",
 )
 CRAWLER_MAX_PAGES = int(os.getenv("CRAWLER_MAX_PAGES", "10"))
 CRAWLER_PAGE_TIMEOUT = int(os.getenv("CRAWLER_PAGE_TIMEOUT", "60"))

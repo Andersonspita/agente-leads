@@ -13,7 +13,7 @@ from apps.core.jobs import enqueue
 from apps.core.text import normalize_phone
 
 from .discovery import cnpj, osm, places, websearch
-from .discovery.dedup import Candidate, find_duplicate, is_shared_domain
+from .discovery.dedup import Candidate, NameIndex, find_duplicate, is_shared_domain
 from .models import Company, LeadStatus, Search, SearchResult, Website, normalize_domain
 
 logger = logging.getLogger(__name__)
@@ -52,12 +52,13 @@ def cached_search(search: Search) -> Search | None:
 SITE_ORIGIN = {"places": "places", "osm": "osm", "web": "web", "manual": "manual"}
 
 
-def upsert_company(data: dict, search: Search, fonte: str, posicao: int) -> tuple[Company, bool]:
+def upsert_company(data: dict, search: Search, fonte: str, posicao: int,
+                   name_index: NameIndex | None = None) -> tuple[Company, bool]:
     candidate = Candidate(
         nome=data["nome"], telefone=data.get("telefone", ""), site=data.get("site", ""),
         municipality_id=search.municipality_id,
     )
-    company = find_duplicate(candidate)
+    company = find_duplicate(candidate, name_index)
     created = company is None
     if created:
         company = Company(
@@ -77,6 +78,8 @@ def upsert_company(data: dict, search: Search, fonte: str, posicao: int) -> tupl
     if not company.category and search.category:
         company.category = search.category
     company.save()
+    if created and name_index is not None:
+        name_index.add(company.pk, company.nome_normalizado)
 
     site = data.get("site")
     if site and not is_shared_domain(normalize_domain(site)):
@@ -101,12 +104,27 @@ def enqueue_enrich(website: Website):
     enqueue(enrich_website, website.pk)
 
 
+BATCH_SIZE = 100
+
+
+def batched(items, size=BATCH_SIZE):
+    batch = []
+    for item in items:
+        batch.append(item)
+        if len(batch) >= size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
 def run_search(search: Search) -> Search:
     search.status = Search.Status.RUNNING
     search.save(update_fields=["status"])
     fontes = {"places": 0, "osm": 0, "cnpj": 0, "web": 0, "sites_por_email": 0, "erros": [], "avisos": []}
     posicao = 0
     email_probes: list[tuple[int, str, list[str]]] = []
+    name_index = NameIndex(search.municipality_id)  # deduplicação por nome sem varrer a cidade a cada empresa
 
     # O cache de 30 dias vale só para o Google Places (pago). As fontes gratuitas são sempre consultadas,
     # para refletir, por exemplo, uma base CNPJ recém-importada.
@@ -132,7 +150,7 @@ def run_search(search: Search) -> Search:
                     seen_places.add(item["google_place_id"])
                     posicao += 1
                     with transaction.atomic():
-                        upsert_company(item, search, SearchResult.Source.PLACES, posicao)
+                        upsert_company(item, search, SearchResult.Source.PLACES, posicao, name_index)
                     fontes["places"] += 1
         except places.PlacesUnavailable:
             fontes["avisos"].append("Google Places não configurado: usando só as fontes gratuitas.")
@@ -145,26 +163,28 @@ def run_search(search: Search) -> Search:
     osm_tags = search.category.osm_tags if search.category else []
     if osm_tags or search.termo_livre:
         try:
-            for item in osm.search(search.municipality_id, osm_tags, search.termo_livre):
-                if search.bairro and search.bairro.lower() not in (item.get("bairro") or "").lower():
-                    continue
-                posicao += 1
+            items = [i for i in osm.search(search.municipality_id, osm_tags, search.termo_livre)
+                     if not search.bairro or search.bairro.lower() in (i.get("bairro") or "").lower()]
+            for batch in batched(items):  # um commit por lote: bem mais rápido que um por empresa
                 with transaction.atomic():
-                    upsert_company(item, search, SearchResult.Source.OSM, posicao)
-                fontes["osm"] += 1
+                    for item in batch:
+                        posicao += 1
+                        upsert_company(item, search, SearchResult.Source.OSM, posicao, name_index)
+                        fontes["osm"] += 1
         except osm.OsmUnavailable as exc:
             fontes["avisos"].append(str(exc)[:300])
 
     cnaes = search.category.cnaes if search.category else []
-    for item in cnpj.search(search.municipality_id, cnaes):
-        if search.bairro and search.bairro.lower() not in (item.get("bairro") or "").lower():
-            continue
-        posicao += 1
+    items = [i for i in cnpj.search(search.municipality_id, cnaes)
+             if not search.bairro or search.bairro.lower() in (i.get("bairro") or "").lower()]
+    for batch in batched(items):
         with transaction.atomic():
-            company, _ = upsert_company(item, search, SearchResult.Source.CNPJ, posicao)
-        fontes["cnpj"] += 1
-        if item.get("dominio_email") and settings.EMAIL_DOMAIN_DISCOVERY:
-            email_probes.append((company.pk, item["dominio_email"], item.get("nomes") or [item["nome"]]))
+            for item in batch:
+                posicao += 1
+                company, _ = upsert_company(item, search, SearchResult.Source.CNPJ, posicao, name_index)
+                fontes["cnpj"] += 1
+                if item.get("dominio_email") and settings.EMAIL_DOMAIN_DISCOVERY:
+                    email_probes.append((company.pk, item["dominio_email"], item.get("nomes") or [item["nome"]]))
 
     if websearch.enabled():
         no_site = Company.objects.filter(search_results__search=search, websites__isnull=True)[:30]

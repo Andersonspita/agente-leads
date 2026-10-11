@@ -70,11 +70,18 @@ export default function BriefingPage() {
               </Select>
             )}
             {briefing && (
-              <a href={`/api/briefings/${briefing.id}/markdown`}>
-                <Button variant="outline">
-                  <Download className="size-4" aria-hidden /> Markdown
-                </Button>
-              </a>
+              <>
+                <a href={`/api/briefings/${briefing.id}/pdf`}>
+                  <Button variant="outline">
+                    <Download className="size-4" aria-hidden /> PDF
+                  </Button>
+                </a>
+                <a href={`/api/briefings/${briefing.id}/markdown`}>
+                  <Button variant="outline">
+                    <Download className="size-4" aria-hidden /> Markdown
+                  </Button>
+                </a>
+              </>
             )}
             <Button variant={briefing ? "outline" : "primary"} onClick={() => create.mutate()} loading={create.isPending}>
               <Plus className="size-4" aria-hidden /> {briefing ? "Nova versão" : "Gerar briefing"}

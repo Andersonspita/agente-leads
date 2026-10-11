@@ -19,3 +19,4 @@ anthropic>=1.0
 weasyprint>=62
 django-storages[s3]>=1.14
 sentry-sdk>=2.14
+pillow>=10

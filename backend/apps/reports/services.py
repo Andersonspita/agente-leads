@@ -107,7 +107,10 @@ def default_summary(audit: Audit, findings: list[Finding]) -> str:
     company = audit.website.company
     band = score_band(audit.nota_geral)["rotulo"].lower()
     top = [f.titulo.rstrip(".") for f in findings[:2]]
-    parts = [f"O site da {company.nome} tirou {audit.nota_geral}/100 na nossa avaliação ({band})."]
+    if audit.nota_geral is None:  # auditoria manual (site bloqueou o robô): sem nota automática
+        parts = [f"Analisamos o site da {company.nome} e encontramos pontos que afastam clientes hoje."]
+    else:
+        parts = [f"O site da {company.nome} tirou {audit.nota_geral}/100 na nossa avaliação ({band})."]
     if top:
         parts.append("Os pontos que mais custam clientes hoje: " + "; ".join(t[0].lower() + t[1:] for t in top) + ".")
     parts.append("Um site novo resolve esses problemas e transforma mais visitas em contatos.")
@@ -158,7 +161,11 @@ def hash_ip(ip: str) -> str:
 
 
 def render_pdf(report) -> bytes:
-    html = render_to_string("reports/public.html", build_report_context(report, inline_images=True))
+    return html_to_pdf(render_to_string("reports/public.html", build_report_context(report, inline_images=True)))
+
+
+def html_to_pdf(html: str) -> bytes:
+    """WeasyPrint quando disponível (Linux/Docker); senão o Chromium do Playwright."""
     try:
         from weasyprint import HTML
 
@@ -240,6 +247,20 @@ def build_briefing(company, audit: Audit | None) -> dict:
             "Dados de contato, horário e endereço oficiais",
         ],
     }
+
+
+def briefing_pdf(briefing) -> bytes:
+    content = briefing.conteudo
+    severities = {"critica": "Crítica", "alta": "Alta", "media": "Média", "baixa": "Baixa"}
+    html = render_to_string("reports/briefing.html", {
+        "b": briefing, "c": content, "brand": BrandSettings.get(), "hoje": timezone.localdate(),
+        "requisitos": [{**r, "severidade_nome": severities.get(r["severidade"], r["severidade"])}
+                       for r in content.get("requisitos", [])],
+        "listas": [("Páginas", content.get("paginas", [])), ("Seções obrigatórias", content.get("secoes", [])),
+                   ("Integrações", content.get("integracoes", [])),
+                   ("Conteúdo a solicitar ao cliente", content.get("conteudo_necessario", []))],
+    })
+    return html_to_pdf(html)
 
 
 def briefing_markdown(briefing) -> str:

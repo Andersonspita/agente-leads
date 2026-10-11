@@ -68,3 +68,19 @@ def test_upsert_ignores_social_profile_as_website(city, category):
     search = Search.objects.create(category=category, municipality=city)
     company, _ = upsert_company({"nome": "Studio X", "site": "https://instagram.com/studiox"}, search, "places", 1)
     assert not company.websites.exists()
+
+
+@pytest.mark.django_db
+def test_name_index_matches_like_full_scan(city):
+    from apps.leads.discovery.dedup import NameIndex
+
+    a = Company.objects.create(nome="Clínica Sorriso", municipality=city)
+    Company.objects.create(nome="Advocacia Silva Pereira", municipality=city)
+    index = NameIndex(city.pk)
+    assert index.best_match(normalize_company_name("Clinica Sorriso Ltda")) == a.pk
+    assert index.best_match(normalize_company_name("Padaria Central")) is None
+    novo = Company.objects.create(nome="Padaria Central", municipality=city)
+    index.add(novo.pk, novo.nome_normalizado)
+    assert index.best_match(normalize_company_name("Padaria Central ME")) == novo.pk
+    found = find_duplicate(Candidate("Clinica Sorriso Ltda", municipality_id=city.pk), index)
+    assert found == a

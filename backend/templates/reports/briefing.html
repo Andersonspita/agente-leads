@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Briefing do site novo — {{ c.empresa.nome }}</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  body { font: 11pt/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif; color: #16181d; margin: 0; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid {{ brand.cor_primaria|default:"#1d4ed8" }}; padding-bottom: 10px; margin-bottom: 18px; }
+  .marca { font-weight: 700; color: {{ brand.cor_primaria|default:"#1d4ed8" }}; }
+  h1 { font-family: Georgia, serif; font-size: 22pt; margin: 0 0 4px; }
+  h2 { font-size: 13pt; margin: 22px 0 8px; color: {{ brand.cor_primaria|default:"#1d4ed8" }}; break-after: avoid; }
+  .muted { color: #4a5160; font-size: 9.5pt; }
+  .resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+  .resumo div { border: 1px solid #e3e6ec; border-radius: 8px; padding: 8px 10px; }
+  .resumo strong { display: block; font-size: 10.5pt; }
+  table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid #e3e6ec; }
+  th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .04em; color: #4a5160; }
+  tr { break-inside: avoid; }
+  .sev { font-weight: 700; font-size: 9pt; }
+  .sev-critica { color: #b42318; } .sev-alta { color: #b54708; } .sev-media { color: #8a6d00; } .sev-baixa { color: #4a5160; }
+  .colunas { columns: 2; column-gap: 24px; }
+  .colunas section { break-inside: avoid; }
+  ul.check { list-style: none; padding: 0; margin: 0; }
+  ul.check li { padding: 3px 0 3px 22px; position: relative; }
+  ul.check li:before { content: ""; position: absolute; left: 0; top: 7px; width: 11px; height: 11px; border: 1.5px solid #4a5160; border-radius: 3px; }
+  footer { margin-top: 24px; border-top: 1px solid #e3e6ec; padding-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <p class="muted" style="margin:0">Briefing técnico do site novo · versão {{ b.versao }}</p>
+    <h1>{{ c.empresa.nome }}</h1>
+  </div>
+  <div class="marca">{{ brand.nome_empresa }}</div>
+</header>
+
+<div class="resumo">
+  <div><span class="muted">Categoria</span><strong>{{ c.empresa.categoria|default:"—" }}</strong></div>
+  <div><span class="muted">Cidade</span><strong>{{ c.empresa.cidade|default:"—" }}</strong></div>
+  <div><span class="muted">Site atual</span><strong>{{ c.empresa.site_atual|default:"sem site" }}</strong></div>
+  <div><span class="muted">Nota atual</span><strong>{% if c.nota_atual is not None %}{{ c.nota_atual }}/100{% else %}não auditado{% endif %}</strong></div>
+</div>
+
+{% if requisitos %}
+<h2>Requisitos a partir do diagnóstico</h2>
+<p class="muted">Cada problema confirmado no site atual vira um requisito do site novo.</p>
+<table>
+  <thead><tr><th style="width:14%">Severidade</th><th style="width:38%">Problema no site atual</th><th>Requisito no site novo</th></tr></thead>
+  <tbody>
+    {% for r in requisitos %}<tr><td class="sev sev-{{ r.severidade }}">{{ r.severidade_nome }}</td><td>{{ r.problema }}</td><td>{{ r.requisito }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<div class="colunas">
+  {% for titulo, itens in listas %}{% if itens %}
+  <section>
+    <h2>{{ titulo }}</h2>
+    <ul class="check">{% for item in itens %}<li>{{ item }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}{% endfor %}
+</div>
+
+<h2>Metas de qualidade (critérios de aceite)</h2>
+<table>
+  <thead><tr><th>Meta</th><th>Alvo</th></tr></thead>
+  <tbody>{% for m in c.metas %}<tr><td>{{ m.meta }}</td><td>{{ m.alvo }}</td></tr>{% endfor %}</tbody>
+</table>
+
+<footer class="muted">
+  Gerado em {{ hoje|date:"d/m/Y" }} por {{ brand.nome_empresa }}. O site entregue será auditado com os mesmos critérios do diagnóstico.
+</footer>
+</body>
+</html>

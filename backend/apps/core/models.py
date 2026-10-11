@@ -68,7 +68,7 @@ class PromptVersion(models.Model):
 class BrandSettings(models.Model):
     """Marca que assina os relatórios (configurável — questão em aberto do PRD 1.8)."""
 
-    nome_empresa = models.CharField(max_length=120, default="Lopes Consultoria")
+    nome_empresa = models.CharField(max_length=120, default="Horizon AJ Desenvolvimento")
     cor_primaria = models.CharField(max_length=7, default="#1d4ed8")
     logo = models.FileField(upload_to="brand/", blank=True)
     whatsapp = models.CharField(max_length=20, blank=True, help_text="Somente dígitos, com DDI e DDD")

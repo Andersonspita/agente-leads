@@ -40,13 +40,17 @@ def trigrams(text: str) -> set[str]:
     return {padded[i : i + 3] for i in range(len(padded) - 2)}
 
 
+def name_trigrams(text: str) -> set[str]:
+    """Trigramas por palavra, como o pg_trgm."""
+    out: set[str] = set()
+    for word in text.split():
+        out |= trigrams(word)
+    return out
+
+
 def trigram_similarity(a: str, b: str) -> float:
     """Mesma métrica do pg_trgm (Jaccard de trigramas), usada também fora do Postgres."""
-    ta, tb = set(), set()
-    for word in a.split():
-        ta |= trigrams(word)
-    for word in b.split():
-        tb |= trigrams(word)
+    ta, tb = name_trigrams(a), name_trigrams(b)
     if not ta or not tb:
         return 0.0
     return len(ta & tb) / len(ta | tb)

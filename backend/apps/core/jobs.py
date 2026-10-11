@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from django.conf import settings
 from django.db import close_old_connections, transaction
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 _pool = None
@@ -41,3 +42,36 @@ def enqueue(task, *args, **kwargs):
             _get_pool().submit(_run_local, task, args, kwargs)
 
     transaction.on_commit(dispatch)
+
+
+def reap_stale_jobs():
+    """Marca como interrompidas as auditorias e buscas que ficaram "em andamento" além do limite.
+
+    Acontece quando o processo que rodava o job cai ou é reiniciado (no modo local os jobs rodam
+    em threads do servidor web). Sem isso, a auditoria ficaria "executando" para sempre.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.audits.models import Audit, AuditStep
+    from apps.leads.models import Search
+
+    now = timezone.now()
+    audit_limit = now - timedelta(seconds=settings.AUDIT_TIMEOUT + 300)
+    stale = Audit.objects.filter(status__in=[Audit.Status.QUEUED, Audit.Status.RUNNING]).filter(
+        Q(iniciado_em__lt=audit_limit) | Q(iniciado_em__isnull=True, criado_em__lt=audit_limit)
+    )
+    ids = list(stale.values_list("pk", flat=True))
+    if ids:
+        AuditStep.objects.filter(audit_id__in=ids, status__in=[AuditStep.Status.PENDING, AuditStep.Status.RUNNING]).update(
+            status=AuditStep.Status.SKIPPED, erro="Auditoria interrompida")
+        Audit.objects.filter(pk__in=ids).update(
+            status=Audit.Status.FAILED, concluido_em=now,
+            erro="Auditoria interrompida (o servidor foi reiniciado ou o processo caiu). Use “Tentar de novo”.")
+        logger.warning("Auditorias interrompidas marcadas como falhas: %s", ids)
+    Search.objects.filter(status__in=[Search.Status.QUEUED, Search.Status.RUNNING],
+                          criado_em__lt=now - timedelta(minutes=30)).update(
+        status=Search.Status.FAILED, erro="Busca interrompida (servidor reiniciado). Faça a busca de novo.")
+    return ids
+

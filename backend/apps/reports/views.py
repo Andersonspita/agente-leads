@@ -15,7 +15,7 @@ from apps.core.jobs import enqueue
 from apps.leads.models import Company, LeadStatus
 
 from .models import Briefing, Report, ReportView
-from .services import briefing_markdown, build_briefing, build_report_context, hash_ip
+from .services import briefing_markdown, briefing_pdf, build_briefing, build_report_context, hash_ip
 from .tasks import render_report_pdf
 
 
@@ -165,6 +165,14 @@ class BriefingViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.Ret
         briefing = serializer.save(audit=audit, conteudo=build_briefing(company, audit), versao=version,
                                    criado_por=self.request.user)
         log_activity(self.request.user, "briefing_gerado", briefing)
+
+    @action(detail=True)
+    def pdf(self, request, pk=None):
+        briefing = self.get_object()
+        response = HttpResponse(briefing_pdf(briefing), content_type="application/pdf")
+        name = briefing.company.nome_normalizado.replace(" ", "-")[:40]
+        response["Content-Disposition"] = f'attachment; filename="briefing-{name}-v{briefing.versao}.pdf"'
+        return response
 
     @action(detail=True)
     def markdown(self, request, pk=None):

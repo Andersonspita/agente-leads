@@ -18,9 +18,90 @@ from .costs import month_spend
 from .models import ActivityLog, ApiUsage, BrandSettings, PromptVersion
 
 
+def _median(values):
+    values = sorted(v for v in values if v is not None)
+    if not values:
+        return None
+    mid = len(values) // 2
+    return values[mid] if len(values) % 2 else (values[mid - 1] + values[mid]) / 2
+
+
+def prd_goals() -> list[dict]:
+    """Metas de sucesso do PRD 1.2, calculadas com os dados reais do sistema."""
+    from apps.audits.models import Audit, Finding
+    from apps.sitebuilder.models import SiteProject
+    from apps.leads.models import Search
+
+    goals = []
+
+    searches = list(Search.objects.filter(status=Search.Status.DONE, concluido_em__isnull=False)
+                    .order_by("-concluido_em")[:20])
+    if searches:
+        avg_found = sum(s.total_encontrado for s in searches) / len(searches)
+        avg_secs = _median([(s.concluido_em - s.criado_em).total_seconds() for s in searches])
+        goals.append({"chave": "busca", "nome": "Empresas por busca", "valor": f"{avg_found:.0f} em {avg_secs:.0f} s",
+                      "meta": "≥ 50 em até 2 min", "ok": avg_found >= 50 and avg_secs <= 120,
+                      "amostra": f"últimas {len(searches)} buscas"})
+
+    audits = list(Audit.objects.filter(status=Audit.Status.DONE, iniciado_em__isnull=False,
+                                       concluido_em__isnull=False).order_by("-concluido_em")[:30])
+    if audits:
+        secs = _median([(a.concluido_em - a.iniciado_em).total_seconds() for a in audits])
+        goals.append({"chave": "auditoria", "nome": "Tempo de auditoria (mediana)", "valor": f"{secs / 60:.1f} min",
+                      "meta": "≤ 3 min", "ok": secs <= 180, "amostra": f"últimas {len(audits)} auditorias"})
+
+    sent = Company.objects.filter(websites__audits__reports__enviado_em__isnull=False).distinct()
+    total_sent = sent.count()
+    if total_sent:
+        closed = sent.filter(status_lead__in=[LeadStatus.CLOSED, LeadStatus.DELIVERED]).count()
+        goals.append({"chave": "propostas", "nome": "Propostas aceitas após o relatório",
+                      "valor": f"{closed / total_sent * 100:.0f}% ({closed} de {total_sent})",
+                      "meta": "linha de base no 1º trimestre, depois +20%", "ok": None,
+                      "amostra": "leads com relatório enviado"})
+
+    pairs = []
+    for project in SiteProject.objects.filter(website__isnull=False).select_related("audit_origem", "website"):
+        new = project.website.audits.filter(status=Audit.Status.DONE).order_by("-concluido_em").first()
+        if new and new.nota_geral is not None:
+            old = project.audit_origem.nota_geral if project.audit_origem else None
+            pairs.append((new.nota_geral, old))
+    if pairs:
+        avg_new = sum(n for n, _ in pairs) / len(pairs)
+        gains = [n - o for n, o in pairs if o is not None]
+        avg_gain = sum(gains) / len(gains) if gains else None
+        valor = f"{avg_new:.0f}/100" + (f" (+{avg_gain:.0f} pontos)" if avg_gain is not None else "")
+        goals.append({"chave": "site_novo", "nome": "Nota do site novo vs. antigo", "valor": valor,
+                      "meta": "≥ 85 e +30 sobre o antigo",
+                      "ok": avg_new >= 85 and (avg_gain is None or avg_gain >= 30),
+                      "amostra": f"{len(pairs)} site(s) gerado(s) auditado(s)"})
+
+    review_minutes = []
+    for r in Report.objects.select_related("audit").filter(audit__concluido_em__isnull=False)[:50]:
+        review_minutes.append((r.criado_em - r.audit.concluido_em).total_seconds() / 60)
+    med = _median([m for m in review_minutes if m >= 0])
+    if med is not None:
+        goals.append({"chave": "revisao", "nome": "Da auditoria ao relatório (mediana)",
+                      "valor": f"{med:.0f} min" if med < 120 else f"{med / 60:.1f} h",
+                      "meta": "≤ 30 min de revisão", "ok": med <= 30,
+                      "amostra": "inclui espera; é um teto para o tempo real de revisão"})
+
+    reviewed = Finding.objects.filter(origem=Finding.Origin.AI,
+                                      status_revisao__in=[Finding.Review.CONFIRMED, Finding.Review.DISCARDED])
+    total_ai = reviewed.count()
+    if total_ai:
+        accepted = reviewed.filter(status_revisao=Finding.Review.CONFIRMED, texto_editado=False).count()
+        pct = accepted / total_ai * 100
+        goals.append({"chave": "ia", "nome": "Achados da IA aceitos sem reescrita", "valor": f"{pct:.0f}%",
+                      "meta": "≥ 80%", "ok": pct >= 80, "amostra": f"{total_ai} achado(s) de IA revisado(s)"})
+    return goals
+
+
 @api_view(["GET"])
 def dashboard(request):
     """GET /api/dashboard — funil, auditorias da semana e custo de APIs."""
+    from .jobs import reap_stale_jobs
+
+    reap_stale_jobs()
     now = timezone.now()
     week = now - timedelta(days=7)
     funnel = dict(Company.objects.order_by().values_list("status_lead").annotate(n=Count("id")))
@@ -45,6 +126,7 @@ def dashboard(request):
             "relatorios_abertos": ReportView.objects.filter(visto_em__gte=week).values("report").distinct().count(),
             "leads_novos": Company.objects.filter(criado_em__gte=week).count(),
         },
+        "metas": prd_goals(),
         "revisao_pendente": Finding.objects.filter(status_revisao=Finding.Review.PENDING).values("audit")
         .distinct().count(),
         "custos": {

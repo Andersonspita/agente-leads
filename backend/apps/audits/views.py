@@ -1,19 +1,23 @@
+import secrets
+
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
 from apps.catalog.models import Dimension
 from apps.core.activity import log_activity
 from apps.core.jobs import enqueue
-from apps.leads.models import Company, Website
+from apps.leads.models import Company, LeadStatus, Website
 
 from .engine.scoring import score_band
 from .models import STEPS, Artifact, Audit, AuditStep, Finding
 from .tasks import ai_analysis, run_audit
 
 MAX_BATCH = 50  # RF04
+MAX_CAPTURE_BYTES = 10 * 1024 * 1024
 
 
 class StepSerializer(serializers.ModelSerializer):
@@ -133,6 +137,10 @@ class AuditViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         return AuditDetailSerializer if self.action == "retrieve" else AuditListSerializer
 
     def get_queryset(self):
+        if self.action in ("list", "retrieve"):
+            from apps.core.jobs import reap_stale_jobs
+
+            reap_stale_jobs()
         qs = super().get_queryset()
         if self.action == "retrieve":
             qs = qs.prefetch_related("artifacts", "reports", "findings__editado_por")
@@ -183,6 +191,58 @@ class AuditViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Ge
         new = start_audits([audit.website], request.user)[0]
         return Response({"audit_id": new.pk}, status=status.HTTP_202_ACCEPTED)
 
+    @action(detail=True, methods=["post"], parser_classes=[MultiPartParser])
+    def upload_capture(self, request, pk=None):
+        """Captura enviada pelo analista (ex.: site que bloqueia o robô). Substitui a captura do mesmo tipo."""
+        from PIL import Image, UnidentifiedImageError
+
+        audit = self.get_object()
+        kind = {"desktop": Artifact.Kind.SCREENSHOT_DESKTOP, "mobile": Artifact.Kind.SCREENSHOT_MOBILE}.get(
+            request.data.get("tipo"))
+        upload = request.FILES.get("arquivo")
+        if not kind or not upload:
+            return Response({"detail": "Envie 'tipo' (desktop ou mobile) e o arquivo de imagem."}, status=400)
+        if upload.size > MAX_CAPTURE_BYTES:
+            return Response({"detail": "Imagem acima de 10 MB."}, status=400)
+        try:
+            image = Image.open(upload)
+            image.verify()
+        except (UnidentifiedImageError, OSError):
+            return Response({"detail": "Arquivo não é uma imagem válida (use PNG, JPG ou WEBP)."}, status=400)
+        if image.format not in ("PNG", "JPEG", "WEBP"):
+            return Response({"detail": "Use PNG, JPG ou WEBP."}, status=400)
+        width, height = image.size
+        ext = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}[image.format]
+        for old in audit.artifacts.filter(tipo=kind):
+            old.arquivo.delete(save=False)
+            old.delete()
+        upload.seek(0)
+        artifact = Artifact(audit=audit, tipo=kind, tamanho=upload.size,
+                            meta={"largura": width, "altura": height, "manual": True})
+        artifact.arquivo.save(f"{secrets.token_hex(12)}_{kind}_manual.{ext}", upload, save=True)
+        log_activity(request.user, "captura_manual", audit, tipo=request.data.get("tipo"))
+        return Response(ArtifactSerializer(artifact).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"])
+    def finish_manual(self, request, pk=None):
+        """Conclui como auditoria manual uma auditoria que o robô não conseguiu fazer (site bloqueado)."""
+        audit = self.get_object()
+        if audit.status == Audit.Status.DONE:
+            return Response({"detail": "A auditoria já está concluída."}, status=400)
+        if audit.status in (Audit.Status.QUEUED, Audit.Status.RUNNING):
+            return Response({"detail": "Aguarde a auditoria automática terminar."}, status=400)
+        audit.status = Audit.Status.DONE
+        audit.versao_regras = "manual"
+        audit.metricas = {**(audit.metricas or {}), "manual": True}
+        audit.concluido_em = audit.concluido_em or timezone.now()
+        audit.save(update_fields=["status", "versao_regras", "metricas", "concluido_em"])
+        company = audit.website.company
+        if company.status_lead == LeadStatus.FOUND:
+            company.status_lead = LeadStatus.AUDITED
+            company.save(update_fields=["status_lead", "atualizado_em"])
+        log_activity(request.user, "auditoria_manual", audit)
+        return Response(AuditDetailSerializer(self.get_queryset().get(pk=audit.pk)).data)
+
 
 class FindingViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin, mixins.RetrieveModelMixin,
                      viewsets.GenericViewSet):
@@ -192,8 +252,16 @@ class FindingViewSet(mixins.CreateModelMixin, mixins.UpdateModelMixin, mixins.Re
     serializer_class = FindingSerializer
     http_method_names = ["get", "post", "patch"]
 
+    TEXT_FIELDS = ("titulo", "descricao", "impacto_negocio", "melhoria_proposta")
+
     def perform_update(self, serializer):
-        finding = serializer.save(editado_por=self.request.user, editado_em=timezone.now())
+        before = serializer.instance
+        changed = any(
+            f in serializer.validated_data and serializer.validated_data[f].strip() != getattr(before, f).strip()
+            for f in self.TEXT_FIELDS
+        )
+        extra = {"texto_editado": True} if changed else {}
+        finding = serializer.save(editado_por=self.request.user, editado_em=timezone.now(), **extra)
         log_activity(self.request.user, f"achado_{finding.status_revisao}", finding,
                      campos=list(self.request.data.keys()))
 

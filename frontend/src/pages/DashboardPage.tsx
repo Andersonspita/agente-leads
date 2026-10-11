@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowRight, Eye, FileCheck2, Radar, Search, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, CircleDashed, Eye, FileCheck2, Radar, Search, Target, UserPlus, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { api } from "@/api/client";
@@ -92,6 +92,8 @@ export default function DashboardPage() {
           </>
         )}
 
+        {data && data.metas.length > 0 && <Goals goals={data.metas} />}
+
         {data && (
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
@@ -171,6 +173,31 @@ export default function DashboardPage() {
         )}
       </PageBody>
     </>
+  );
+}
+
+function Goals({ goals }: { goals: Dashboard["metas"] }) {
+  return (
+    <Card>
+      <CardHeader title={<span className="inline-flex items-center gap-1.5"><Target className="size-4" aria-hidden /> Metas do PRD</span>} description="Calculadas com os dados reais do sistema" />
+      <ul className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-3">
+        {goals.map((g) => (
+          <li key={g.chave} className="bg-surface p-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-xs font-medium text-muted">{g.nome}</p>
+              {g.ok === true && <CheckCircle2 className="size-4 shrink-0 text-good" aria-label="Meta atingida" />}
+              {g.ok === false && <XCircle className="size-4 shrink-0 text-bad" aria-label="Meta não atingida" />}
+              {g.ok === null && <CircleDashed className="size-4 shrink-0 text-muted" aria-label="Em acompanhamento" />}
+            </div>
+            <p className="mt-1 text-xl font-bold tabular-nums">{g.valor}</p>
+            <p className="text-xs text-muted">
+              Meta: {g.meta} · {g.ok === true ? "atingida" : g.ok === false ? "não atingida" : "em acompanhamento"}
+            </p>
+            <p className="mt-1 text-[11px] text-muted">{g.amostra}</p>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 
