@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de Privacidade | {{ c.empresa }}</title>
+<meta name="description" content="Como a {{ c.empresa }} trata os dados pessoais de quem entra em contato pelo site, conforme a LGPD.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+body{margin:0;background:#f7f7fa;color:#14171f;font:17px/1.7 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:780px;margin:0 auto;padding:40px 20px 64px}article{background:#fff;border:1px solid #e5e7ee;border-radius:18px;padding:32px 24px}
+h1{font-family:Georgia,serif;font-size:2rem;line-height:1.2;margin:0 0 .4em}h2{font-size:1.15rem;margin:1.8em 0 .4em}
+a{color:{{ c.cor }}}a:focus-visible{outline:3px solid {{ c.cor_destaque }};outline-offset:3px}.muted{color:#4b5262}
+</style>
+</head>
+<body>
+<main><article>
+<p><a href="index.html">← Voltar ao site</a></p>
+<h1>Política de Privacidade</h1>
+<p class="muted">{{ c.empresa }}{% if cnpj_fmt %} · CNPJ {{ cnpj_fmt }}{% endif %} · Atualizada em {{ hoje }}</p>
+
+<h2>1. Quem somos</h2>
+<p>A {{ c.empresa }}, com atendimento em {{ c.cidade }}/{{ c.uf }}, é a controladora dos dados pessoais tratados neste site, nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
+
+<h2>2. Quais dados coletamos</h2>
+<p>Apenas os dados que você informa ao entrar em contato: nome, telefone e o conteúdo da mensagem. Este site não usa cookies de rastreamento nem ferramentas de publicidade.</p>
+
+<h2>3. Para que usamos</h2>
+<p>Exclusivamente para responder ao seu contato e, se você quiser, agendar um atendimento. A base legal é o seu consentimento e a execução de procedimentos preliminares a pedido do titular.</p>
+
+<h2>4. Com quem compartilhamos</h2>
+<p>Não vendemos nem compartilhamos seus dados. Quando você escolhe falar pelo WhatsApp, a conversa segue também a política de privacidade do WhatsApp.</p>
+
+<h2>5. Por quanto tempo guardamos</h2>
+<p>Pelo tempo necessário para o atendimento e o cumprimento de obrigações legais. Depois disso, os dados são excluídos.</p>
+
+<h2>6. Seus direitos</h2>
+<p>Você pode pedir a qualquer momento acesso, correção ou exclusão dos seus dados e revogar o consentimento.
+{% if c.email %}Escreva para <a href="mailto:{{ c.email }}">{{ c.email }}</a>{% elif zap_link %}Fale conosco pelo <a href="{{ zap_link }}">WhatsApp</a>{% elif tel_link %}Ligue para <a href="{{ tel_link }}">{{ telefone_fmt }}</a>{% endif %}.</p>
+<p class="muted">Você também pode procurar a Autoridade Nacional de Proteção de Dados (ANPD).</p>
+</article></main>
+</body>
+</html>

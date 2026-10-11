@@ -1,0 +1,32 @@
+{% extends "legal/base.html" %}
+{% block title %}Política de privacidade do Auditor de Sites{% endblock %}
+{% block content %}
+<h1>Política de privacidade — Auditor de Sites</h1>
+<p class="muted">Controlador: {{ brand.nome_empresa }}{% if brand.email_contato %} · contato do encarregado: <a href="mailto:{{ brand.email_contato }}">{{ brand.email_contato }}</a>{% endif %}</p>
+
+<h2>O que fazemos</h2>
+<p>Analisamos sites institucionais <strong>públicos</strong> de empresas para preparar diagnósticos de qualidade (desempenho, uso no celular, segurança, acessibilidade, conteúdo e conformidade) e oferecer serviços de criação de sites.</p>
+
+<h2>Quais dados tratamos</h2>
+<ul>
+  <li>Dados públicos de <strong>pessoas jurídicas</strong>: nome, endereço comercial, telefone comercial, site, CNPJ e avaliações públicas em serviços como o Google.</li>
+  <li>Conteúdo e capturas de tela das páginas públicas do site da empresa.</li>
+  <li>Quando você abre um relatório enviado por nós: data, hora, navegador e um código irreversível (hash) do endereço IP — nunca o IP em si.</li>
+</ul>
+<p>Não extraímos telefones ou e-mails de pessoas físicas do conteúdo das páginas e não acessamos áreas protegidas por login.</p>
+
+<h2>Base legal e finalidade</h2>
+<p>Legítimo interesse (art. 7º, IX, da LGPD) para prospecção comercial business-to-business, limitada a dados públicos de empresas e com teste de balanceamento documentado.</p>
+
+<h2>Como coletamos</h2>
+<p>Nosso robô se identifica pelo nome <code>AuditorDeSitesBot</code>, respeita o arquivo robots.txt, faz no máximo uma requisição por segundo em cada site e acessa apenas páginas públicas.</p>
+
+<h2>Por quanto tempo guardamos</h2>
+<ul>
+  <li>Capturas de tela e arquivos técnicos: até 12 meses.</li>
+  <li>Links de relatório: expiram em até 60 dias (ou antes, se revogados).</li>
+</ul>
+
+<h2>Seus direitos</h2>
+<p>Você pode pedir acesso, correção ou exclusão dos dados da sua empresa a qualquer momento. Veja como em <a href="/exclusao-de-dados">exclusão de dados</a>.</p>
+{% endblock %}

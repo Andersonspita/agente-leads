@@ -1,0 +1,96 @@
+# Auditor de Sites — produção (AWS sa-east-1, EC2/Lightsail 4 vCPU / 8 GB) ou máquina local.
+#   cp .env.example .env   # preencha os segredos
+#   docker compose up -d --build
+#   docker compose exec web python manage.py load_ibge
+#   docker compose exec web python manage.py seed_categories
+#   docker compose exec web python manage.py create_operator voce@empresa.com.br --role admin --password '...'
+x-app: &app
+  build: .
+  image: auditor-sites:latest
+  env_file: .env
+  environment:
+    DATABASE_URL: postgres://auditor:${POSTGRES_PASSWORD}@db:5432/auditor
+    CELERY_BROKER_URL: redis://redis:6379/0
+    MEDIA_ROOT: /app/backend/media
+  volumes:
+    - media:/app/backend/media
+  depends_on:
+    db: { condition: service_healthy }
+    redis: { condition: service_started }
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: auditor
+      POSTGRES_USER: auditor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auditor"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+  web:
+    <<: *app
+    command: sh -c "python manage.py migrate --noinput && gunicorn config.wsgi --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+    ports:
+      - "8000:8000"
+
+  # 5 auditorias em paralelo (TRD 2.7); cada uma abre Chromium e Lighthouse.
+  worker-audit:
+    <<: *app
+    command: celery -A config worker -Q audit -c 5 -n audit@%h --max-tasks-per-child 20
+    shm_size: 1gb
+
+  worker-discovery:
+    <<: *app
+    command: celery -A config worker -Q discovery -c 4 -n discovery@%h
+
+  worker-misc:
+    <<: *app
+    command: celery -A config worker -Q ai,reports,maintenance -c 3 -n misc@%h
+    shm_size: 512mb
+
+  beat:
+    <<: *app
+    command: celery -A config beat -l info --schedule /tmp/celerybeat-schedule
+
+  flower:
+    <<: *app
+    command: celery -A config flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+    ports:
+      - "127.0.0.1:5555:5555"
+
+  # Backup diário do PostgreSQL com retenção de 30 dias (TRD 2.7).
+  backup:
+    image: postgres:16
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+        f=/backups/auditor-$$(date +%F).dump;
+        pg_dump -h db -U auditor -Fc auditor > "$$f" && echo "backup ok: $$f";
+        find /backups -name "auditor-*.dump" -mtime +30 -delete;
+        sleep 86400;
+      done'
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  media:

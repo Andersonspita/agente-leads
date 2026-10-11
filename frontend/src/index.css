@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Tokens do painel: tema claro e escuro (brief de design 4.2). */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-brand: #1d4ed8;
+  --color-brand-fg: #ffffff;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-bad: var(--bad);
+  --color-weak: var(--weak);
+  --color-ok: var(--ok);
+  --color-good: var(--good);
+  --color-bad-soft: var(--bad-soft);
+  --color-weak-soft: var(--weak-soft);
+  --color-ok-soft: var(--ok-soft);
+  --color-good-soft: var(--good-soft);
+}
+
+:root {
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-2: #f7f8fa;
+  --border: #e2e5eb;
+  --fg: #16181d;
+  --muted: #5b6272;
+  --bad: #b42318;
+  --weak: #b54708;
+  --ok: #8a6d00;
+  --good: #067647;
+  --bad-soft: #fee4e2;
+  --weak-soft: #fef0c7;
+  --ok-soft: #fef7c3;
+  --good-soft: #dcfae6;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0e1015;
+  --surface: #161920;
+  --surface-2: #1c2029;
+  --border: #2a2f3a;
+  --fg: #e8eaef;
+  --muted: #9aa2b1;
+  --bad: #f97066;
+  --weak: #fdb022;
+  --ok: #fde272;
+  --good: #47cd89;
+  --bad-soft: #3b1512;
+  --weak-soft: #3a2508;
+  --ok-soft: #332c07;
+  --good-soft: #0c2e1d;
+  color-scheme: dark;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-sans); font-size: 14px; }
+
+:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+
+kbd {
+  font-family: ui-monospace, monospace; font-size: 11px; padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--surface-2);
+}

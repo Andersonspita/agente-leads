@@ -1,0 +1,343 @@
+{% load report_extras %}<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="Diagnóstico do site de {{ company.nome }} preparado por {{ brand.nome_empresa }}.">
+<title>Diagnóstico do site — {{ company.nome }}</title>
+{% if not pdf_mode %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;600;700&display=swap"></noscript>
+{% endif %}
+<style>
+  :root {
+    --brand: {{ brand.cor_primaria|default:"#1d4ed8" }};
+    --ink: #16181d; --muted: #4a5160; --line: #e3e6ec; --paper: #ffffff; --soft: #f5f6f9;
+    --bad: #b42318; --weak: #b54708; --ok: #8a6d00; --good: #067647;
+    --bad-bg: #fee4e2; --weak-bg: #fef0c7; --ok-bg: #fef7c3; --good-bg: #dcfae6;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--soft); color: var(--ink); font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1, h2, h3 { font-family: Fraunces, Georgia, serif; line-height: 1.2; margin: 0 0 .5em; }
+  h1 { font-size: clamp(1.9rem, 6vw, 2.8rem); }
+  h2 { font-size: clamp(1.4rem, 4.5vw, 1.9rem); }
+  h3 { font-size: 1.15rem; font-family: Inter, system-ui, sans-serif; font-weight: 700; }
+  p { margin: 0 0 1em; }
+  a { color: var(--brand); }
+  a:focus-visible, summary:focus-visible, .btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  img { max-width: 100%; height: auto; display: block; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+  section { background: var(--paper); border-radius: 16px; padding: 28px 20px; margin: 16px 0; }
+  @media (min-width: 720px) { section { padding: 40px; } }
+  .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; font-weight: 700; color: var(--muted); margin-bottom: .5em; }
+  .muted { color: var(--muted); }
+  header.top { padding: 20px 0 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  header.top .logo { height: 36px; width: auto; }
+  header.top strong { font-size: 1rem; }
+
+  /* Capa */
+  .cover { display: grid; gap: 24px; align-items: center; }
+  @media (min-width: 720px) { .cover { grid-template-columns: 1fr 220px; } }
+  .gauge { position: relative; width: 200px; margin: 0 auto; text-align: center; }
+  .gauge svg { width: 200px; height: 200px; transform: rotate(-90deg); }
+  .gauge .value { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge .num { font: 700 3.4rem/1 Fraunces, Georgia, serif; }
+  .gauge .of { font-size: .9rem; color: var(--muted); }
+  .pill { display: inline-block; border-radius: 999px; padding: 2px 12px; font-size: .85rem; font-weight: 700; }
+  .ruim { color: var(--bad); } .fraco { color: var(--weak); } .regular { color: var(--ok); } .bom { color: var(--good); }
+  .pill.ruim { background: var(--bad-bg); } .pill.fraco { background: var(--weak-bg); } .pill.regular { background: var(--ok-bg); } .pill.bom { background: var(--good-bg); }
+  .pill.nao_medido { background: var(--soft); color: var(--muted); }
+  .stroke-ruim { stroke: var(--bad); } .stroke-fraco { stroke: var(--weak); } .stroke-regular { stroke: #caa200; } .stroke-bom { stroke: var(--good); }
+  .shot { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--soft); }
+
+  .summary { font-size: 1.15rem; }
+
+  /* Problemas */
+  .problem { border-top: 1px solid var(--line); padding-top: 24px; margin-top: 24px; }
+  .problem:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+  .problem-head { display: flex; gap: 12px; align-items: flex-start; }
+  .num-badge { flex: 0 0 36px; height: 36px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .sev { font-size: .8rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 4px; }
+  .sev-critica { background: var(--bad-bg); color: var(--bad); } .sev-alta { background: var(--weak-bg); color: var(--weak); }
+  .sev-media { background: var(--ok-bg); color: var(--ok); } .sev-baixa { background: var(--soft); color: var(--muted); }
+  .impact { background: var(--soft); border-left: 4px solid var(--brand); padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; }
+  .annot { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; margin-top: 12px; }
+  .annot.desktop { aspect-ratio: 16 / 10; } .annot.mobile { aspect-ratio: 390 / 700; max-width: 300px; }
+  .annot .canvas { position: relative; }
+  .annot .mark { position: absolute; border: 3px solid #e11d48; border-radius: 6px; box-shadow: 0 0 0 9999px rgba(0,0,0,0); }
+  .annot .mark span { position: absolute; top: -12px; left: -12px; width: 24px; height: 24px; border-radius: 50%; background: #e11d48; color: #fff; font-size: .75rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .caption { font-size: .85rem; color: var(--muted); margin-top: 6px; }
+  .ai-tag { font-size: .75rem; color: var(--muted); border: 1px dashed var(--muted); border-radius: 6px; padding: 0 6px; }
+
+  /* Concorrentes */
+  .bars { list-style: none; padding: 0; margin: 16px 0 0; }
+  .bars li { display: grid; grid-template-columns: minmax(0, 11rem) 1fr 3rem; gap: 10px; align-items: center; margin-bottom: 10px; font-size: .95rem; }
+  .bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bars .track { background: var(--soft); height: 22px; border-radius: 6px; position: relative; }
+  .bars .fill { height: 100%; border-radius: 6px; background: #9aa3b5; }
+  .bars .you .fill { background: var(--brand); }
+  .bars .you .name { font-weight: 700; }
+  .bars .ref { position: absolute; top: -4px; bottom: -4px; border-left: 2px dashed var(--ink); }
+  .bars .score { font-weight: 700; text-align: right; }
+
+  /* Celular */
+  .phones { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .phone { border: 10px solid var(--ink); border-radius: 28px; overflow: hidden; background: #fff; aspect-ratio: 390 / 780; }
+  .phone img { width: 100%; }
+  .mock { padding: 0; font-size: 11px; line-height: 1.4; }
+  .mock .bar { background: var(--brand); color: #fff; padding: 10px; font-weight: 700; display: flex; justify-content: space-between; }
+  .mock .hero { padding: 18px 12px; background: linear-gradient(160deg, var(--soft), #fff); }
+  .mock .hero b { display: block; font: 700 17px/1.2 Fraunces, Georgia, serif; margin-bottom: 6px; }
+  .mock .cta { display: block; background: #0a7d3b; color: #fff; text-align: center; border-radius: 8px; padding: 9px; font-weight: 700; margin-top: 10px; }
+  .mock .row { margin: 10px 12px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .phone-label { text-align: center; font-weight: 700; margin-top: 8px; font-size: .9rem; }
+
+  /* Tabelas */
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+  th { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  @media (max-width: 600px) {
+    table.stack thead { display: none; }
+    table.stack tr { display: block; border-bottom: 1px solid var(--line); padding: 8px 0; }
+    table.stack td { display: block; border: 0; padding: 4px 0; }
+    table.stack td::before { content: attr(data-label); display: block; font-size: .75rem; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  }
+  .dims { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .dim { border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: .9rem; }
+  .dim strong { font-size: 1.6rem; font-family: Fraunces, Georgia, serif; display: block; }
+
+  /* CTA */
+  .next { background: var(--ink); color: #fff; }
+  .next h2 { color: #fff; }
+  .btns { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+  .btn { display: inline-block; padding: 14px 22px; border-radius: 10px; font-weight: 700; text-decoration: none; min-height: 48px; }
+  .btn.wa { background: #0a7d3b; color: #fff; }
+  .btn.alt { background: #fff; color: var(--ink); }
+  details { border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-top: 12px; }
+  summary { cursor: pointer; font-weight: 700; min-height: 32px; }
+  footer { font-size: .85rem; color: var(--muted); padding: 16px 0 40px; text-align: center; }
+  @media print {
+    body { background: #fff; }
+    section { break-inside: avoid-page; margin: 0 0 12px; border: 1px solid var(--line); }
+    .problem { break-inside: avoid; }
+    .next { background: #fff; color: var(--ink); } .next h2 { color: var(--ink); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    {% if brand.logo %}<img class="logo" src="{{ brand.logo.url }}" alt="{{ brand.nome_empresa }}" width="120" height="36">{% else %}<strong>{{ brand.nome_empresa }}</strong>{% endif %}
+    <span class="muted">{{ hoje|date:"d/m/Y" }}</span>
+  </header>
+
+  <main>
+  <!-- 1. Capa -->
+  <section aria-labelledby="t-capa">
+    <div class="cover">
+      <div>
+        <p class="eyebrow">Diagnóstico do site</p>
+        <h1 id="t-capa">{{ company.nome }}</h1>
+        <p class="muted">{{ website.dominio }}{% if company.municipality %} · {{ company.municipality }}{% endif %}</p>
+        {% if report.texto_abertura %}<p>{{ report.texto_abertura|linebreaksbr }}</p>{% endif %}
+      </div>
+      <div class="gauge" role="img" aria-label="Nota geral {{ audit.nota_geral }} de 100: {{ band.rotulo }}">
+        <svg viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="#e3e6ec" stroke-width="9"/>
+          <circle cx="50" cy="50" r="45" fill="none" class="stroke-{{ band.faixa }}" stroke-width="9" stroke-linecap="round"
+                  stroke-dasharray="282.7" stroke-dashoffset="{{ audit.nota_geral|gauge_offset }}"/>
+        </svg>
+        <div class="value"><span class="num">{{ audit.nota_geral|default:"—" }}</span><span class="of">de 100</span></div>
+        <span class="pill {{ band.faixa }}">{{ band.rotulo }}</span>
+      </div>
+    </div>
+    {% with capturas.screenshot_desktop as cap %}{% if cap %}
+    <div class="shot" style="margin-top:20px"><img src="{{ cap.url }}" alt="Primeira tela do site atual de {{ company.nome }} no computador" width="1440" height="900" loading="eager" fetchpriority="high"></div>
+    {% endif %}{% endwith %}
+  </section>
+
+  <!-- 2. Resumo -->
+  <section aria-labelledby="t-resumo">
+    <p class="eyebrow">Em resumo</p>
+    <h2 id="t-resumo">O que está custando clientes hoje</h2>
+    <p class="summary">{{ resumo }}</p>
+    <div class="dims" aria-label="Notas por área">
+      {% for d in dimensoes %}
+      <div class="dim"><span class="muted">{{ d.nome }}</span><strong class="{{ d.faixa }}">{{ d.nota|default:"—" }}</strong><span class="pill {{ d.faixa }}">{{ d.rotulo }}</span></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- 3. Top 5 problemas -->
+  {% if top %}
+  <section aria-labelledby="t-top">
+    <p class="eyebrow">Os {{ top|length }} principais problemas</p>
+    <h2 id="t-top">O que precisa mudar primeiro</h2>
+    {% for f in top %}
+    <article class="problem">
+      <div class="problem-head">
+        <span class="num-badge" aria-hidden="true">{{ forloop.counter }}</span>
+        <div>
+          <h3>{{ f.titulo }}</h3>
+          <span class="sev sev-{{ f.severidade }}">Gravidade: {{ f.severidade|severity_label }}</span>
+          {% if f.origem == "ia" %}<span class="ai-tag" title="Avaliação assistida por IA e revisada por especialista">avaliação assistida</span>{% endif %}
+        </div>
+      </div>
+      <div class="impact"><strong>Impacto no negócio:</strong> {{ f.impacto_negocio }}</div>
+      {% if f.captura %}
+        {% with boxes=f.evidencia.caixas|visible_boxes:f.captura %}
+        {% if "mobile" in f.evidencia.artefato %}
+        <div class="annot mobile"><div class="canvas" style="{% crop_style boxes f.captura 1.8 %}">
+          <img src="{{ f.captura.url }}" alt="Captura do site no celular{% if f.evidencia.legenda %}: {{ f.evidencia.legenda }}{% endif %}" width="{{ f.captura.largura|default:390 }}" height="{{ f.captura.altura|default:844 }}" loading="lazy">
+          {% for b in boxes %}<div class="mark" style="{% box_style b f.captura %}"><span>{{ forloop.counter }}</span></div>{% endfor %}
+        </div></div>
+        {% else %}
+        <div class="annot desktop"><div class="canvas" style="{% crop_style boxes f.captura %}">
+          <img src="{{ f.captura.url }}" alt="Captura do site no computador{% if f.evidencia.legenda %}: {{ f.evidencia.legenda }}{% endif %}" width="{{ f.captura.largura|default:1440 }}" height="{{ f.captura.altura|default:900 }}" loading="lazy">
+          {% for b in boxes %}<div class="mark" style="{% box_style b f.captura %}"><span>{{ forloop.counter }}</span></div>{% endfor %}
+        </div></div>
+        {% endif %}
+        {% if f.evidencia.legenda %}<p class="caption">{{ f.evidencia.legenda }}</p>{% endif %}
+        {% endwith %}
+      {% elif f.evidencia.tipo == "metrica" and f.evidencia.valor is not None %}
+        <p class="caption">Medido: <strong>{{ f.evidencia.valor }}{% if f.evidencia.unidade %} {{ f.evidencia.unidade }}{% endif %}</strong>{% if f.evidencia.referencia %} · recomendado: {{ f.evidencia.referencia }}{% if f.evidencia.unidade %} {{ f.evidencia.unidade }}{% endif %}{% endif %}</p>
+      {% endif %}
+      <p style="margin-top:12px"><strong>No site novo:</strong> {{ f.melhoria_proposta }}</p>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <!-- 4. Você vs. concorrentes -->
+  {% if comparativo.total > 1 %}
+  <section aria-labelledby="t-comp">
+    <p class="eyebrow">Você vs. concorrentes</p>
+    <h2 id="t-comp">{% if comparativo.posicao == 1 %}Você lidera, mas ainda abaixo do ideal{% else %}{{ comparativo.posicao }}º lugar entre {{ comparativo.total }} sites da região{% endif %}</h2>
+    <p class="muted">Mesma categoria e cidade, avaliados com os mesmos critérios. A linha tracejada marca o padrão de referência ({{ comparativo.referencia }}/100).</p>
+    <ul class="bars">
+      {% for r in comparativo.linhas %}
+      <li class="{% if r.destaque %}you{% endif %}">
+        <span class="name">{{ r.nome }}{% if r.destaque %} (você){% endif %}</span>
+        <span class="track" role="img" aria-label="{{ r.nome }}: {{ r.nota }} de 100">
+          <span class="fill" style="display:block;width:{{ r.nota|default:0 }}%"></span>
+          <span class="ref" style="left:{{ comparativo.referencia }}%"></span>
+        </span>
+        <span class="score">{{ r.nota|default:"—" }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if comparativo.media_local %}<p class="muted">Média dos sites auditados na cidade: {{ comparativo.media_local }}/100.</p>{% endif %}
+  </section>
+  {% endif %}
+
+  <!-- 5. Celular -->
+  {% if capturas.screenshot_mobile %}
+  <section aria-labelledby="t-cel">
+    <p class="eyebrow">Celular</p>
+    <h2 id="t-cel">Como o seu cliente vê o site no celular</h2>
+    <p class="muted">A maior parte das visitas de negócios locais vem do celular, muitas vezes por um link no WhatsApp.</p>
+    <div class="phones">
+      <div>
+        <div class="phone"><img src="{{ capturas.screenshot_mobile.url }}" alt="Site atual de {{ company.nome }} no celular" width="390" height="844" loading="lazy"></div>
+        <p class="phone-label">Hoje</p>
+      </div>
+      <div>
+        <div class="phone mock" aria-label="Esboço da proposta de site novo no celular">
+          <div class="bar"><span>{{ company.nome|truncatechars:22 }}</span><span aria-hidden="true">☰</span></div>
+          <div class="hero"><b>{% if company.category %}{{ company.category.nome }}{% else %}Atendimento{% endif %} em {{ company.municipality.nome|default:"sua cidade" }}</b>
+            Atendimento próximo de você, com agendamento fácil.
+            <span class="cta">Falar no WhatsApp</span></div>
+          <div class="row">★★★★★ Avaliações de clientes</div>
+          <div class="row">Serviços · Horários · Como chegar</div>
+          <div class="row">Fotos da equipe e do espaço</div>
+        </div>
+        <p class="phone-label">Proposta</p>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- 6. Riscos -->
+  {% if riscos %}
+  <section aria-labelledby="t-riscos">
+    <p class="eyebrow">Riscos</p>
+    <h2 id="t-riscos">Segurança e LGPD</h2>
+    <ul>
+      {% for f in riscos %}<li style="margin-bottom:10px"><strong>{{ f.titulo }}.</strong> {{ f.impacto_negocio }}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <!-- 7. O que o site novo resolve -->
+  {% if solucoes %}
+  <section aria-labelledby="t-sol">
+    <p class="eyebrow">O site novo</p>
+    <h2 id="t-sol">O que o site novo resolve</h2>
+    <table class="stack">
+      <thead><tr><th scope="col">Problema hoje</th><th scope="col">Solução</th><th scope="col">Ganho</th></tr></thead>
+      <tbody>
+        {% for f in solucoes %}
+        <tr><td data-label="Problema hoje">{{ f.titulo }}</td><td data-label="Solução">{{ f.melhoria_proposta }}</td><td data-label="Ganho">{{ f.gain }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <!-- 8. Próximo passo -->
+  <section class="next" aria-labelledby="t-next">
+    <h2 id="t-next">Próximo passo</h2>
+    <p>Uma conversa de 20 minutos para mostrar como o site novo resolve cada ponto deste diagnóstico — sem compromisso.</p>
+    <div class="btns">
+      {% if whatsapp_link %}<a class="btn wa" href="{{ whatsapp_link|iriencode }}" rel="noopener">Falar com um especialista no WhatsApp</a>{% endif %}
+      {% if brand.link_agenda %}<a class="btn alt" href="{{ brand.link_agenda }}" rel="noopener">Agendar uma conversa</a>{% endif %}
+      {% if brand.email_contato and not whatsapp_link %}<a class="btn alt" href="mailto:{{ brand.email_contato }}">{{ brand.email_contato }}</a>{% endif %}
+    </div>
+  </section>
+
+  <!-- Apêndice técnico -->
+  <section aria-labelledby="t-apx">
+    <h2 id="t-apx">Apêndice técnico</h2>
+    <details{% if pdf_mode %} open{% endif %}>
+      <summary>Métricas medidas</summary>
+      <table>
+        <tbody>
+          <tr><th scope="row">Conteúdo principal no celular (LCP)</th><td>{{ metricas.lcp_mobile_ms|seconds }}</td></tr>
+          <tr><th scope="row">Peso da página inicial</th><td>{{ metricas.peso_bytes|megabytes }}</td></tr>
+          <tr><th scope="row">Requisições</th><td>{{ metricas.requisicoes|default:"—" }}</td></tr>
+          <tr><th scope="row">HTTPS</th><td>{% if metricas.https %}Sim{% elif metricas.https is None %}—{% else %}Não{% endif %}</td></tr>
+          <tr><th scope="row">Plataforma</th><td>{{ metricas.cms|default:"não identificada" }}</td></tr>
+          <tr><th scope="row">Páginas analisadas</th><td>{{ metricas.paginas_rastreadas|default:"—" }}</td></tr>
+          {% for preset, scores in metricas.lighthouse.items %}
+          <tr><th scope="row">Lighthouse ({{ preset }})</th><td>{% for k, v in scores.items %}{{ k }}: {{ v }}{% if not forloop.last %} · {% endif %}{% endfor %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+    {% if outros %}
+    <details{% if pdf_mode %} open{% endif %}>
+      <summary>Outros pontos encontrados ({{ outros|length }})</summary>
+      <ul>{% for f in outros %}<li><strong>{{ f.titulo }}</strong> — {{ f.impacto_negocio }}</li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+    {% if nao_medidas %}
+    <details{% if pdf_mode %} open{% endif %}>
+      <summary>O que não pôde ser medido</summary>
+      <ul>{% for s in nao_medidas %}<li>{{ s.get_status_display }}: {{ s.etapa }}{% if s.erro %} — {{ s.erro|truncatechars:140 }}{% endif %}</li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+    <p class="muted" style="margin-top:16px">Metodologia: análise automática de páginas públicas (desempenho, celular, SEO, acessibilidade WCAG 2.1, segurança, conteúdo, conversão e LGPD), com pontos de avaliação assistida por IA revisados por especialista. Auditoria de {{ audit.concluido_em|date:"d/m/Y" }}.</p>
+  </section>
+  </main>
+
+  <footer>
+    Relatório preparado por {{ brand.nome_empresa }}{% if brand.site %} · <a href="{{ brand.site }}">{{ brand.site }}</a>{% endif %}.
+    Dados coletados apenas de páginas públicas. <a href="/privacidade">Privacidade</a> · <a href="/exclusao-de-dados">Pedir exclusão dos dados</a>.
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{% extends "legal/base.html" %}
+{% block title %}Exclusão de dados{% endblock %}
+{% block content %}
+<h1>Exclusão de dados</h1>
+<p>Se a sua empresa recebeu um diagnóstico nosso e você não quer que mantenhamos os dados coletados, basta pedir. Excluímos em até 15 dias a empresa, os sites, as análises, as capturas de tela, os relatórios (o link deixa de funcionar) e as anotações relacionadas.</p>
+
+<h2>Como pedir</h2>
+<ol>
+  {% if brand.email_contato %}<li>Envie um e-mail para <a href="mailto:{{ brand.email_contato }}?subject=Exclusão%20de%20dados">{{ brand.email_contato }}</a> com o nome da empresa e o endereço do site.</li>{% endif %}
+  {% if brand.whatsapp %}<li>Ou fale conosco pelo <a href="https://wa.me/{{ brand.whatsapp }}?text=Quero%20pedir%20a%20exclus%C3%A3o%20dos%20dados%20da%20minha%20empresa">WhatsApp</a>.</li>{% endif %}
+  <li>Se preferir, responda diretamente à mensagem em que recebeu o link do relatório.</li>
+</ol>
+<p>Confirmamos a exclusão pelo mesmo canal. O registro de que o pedido foi atendido fica na nossa trilha de auditoria, sem os dados excluídos.</p>
+<p class="muted"><a href="/privacidade">Política de privacidade</a></p>
+{% endblock %}

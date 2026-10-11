@@ -1,0 +1,9 @@
+{
+  "name": "auditor-backend-tools",
+  "private": true,
+  "description": "Ferramentas Node usadas pelo motor de auditoria (axe-core e Lighthouse).",
+  "dependencies": {
+    "axe-core": "^4.10.0",
+    "lighthouse": "^12.2.0"
+  }
+}

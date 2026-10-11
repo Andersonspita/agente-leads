@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ c.titulo_seo }}</title>
+<meta name="description" content="{{ c.descricao_seo }}">
+<meta name="theme-color" content="{{ c.cor }}">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="{{ base_url }}">
+<meta property="og:title" content="{{ c.titulo_seo }}">
+<meta property="og:description" content="{{ c.descricao_seo }}">
+<meta property="og:type" content="website">
+<script type="application/ld+json">{{ jsonld|safe }}</script>
+<style>
+:root{--cor:{{ c.cor }};--cor-escura:{{ cor_escura }};--destaque:{{ c.cor_destaque }};--destaque-txt:{{ destaque_txt }};--tinta:#14171f;--suave:#4b5262;--linha:#e5e7ee;--fundo:#f7f7fa;--branco:#fff;--raio:18px;--sombra:0 10px 30px -12px rgba(20,23,31,.25)}
+*{box-sizing:border-box}html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;color:var(--tinta);background:var(--branco);font:17px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+h1,h2,h3{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;line-height:1.15;letter-spacing:-.01em;margin:0 0 .5em}
+h1{font-size:clamp(2rem,6vw,3.4rem)}h2{font-size:clamp(1.6rem,4vw,2.3rem)}h3{font-size:1.2rem}
+p{margin:0 0 1em}a{color:var(--cor)}img{max-width:100%;height:auto;display:block}
+a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--destaque);outline-offset:3px}
+.wrap{max-width:1140px;margin:0 auto;padding:0 20px}
+.pular{position:absolute;left:-999px;top:8px;background:var(--branco);padding:10px 14px;border-radius:8px;z-index:99}.pular:focus{left:8px}
+header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--linha)}
+.topo{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:68px}
+.marca{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--tinta);font-weight:700;font-size:1.05rem}
+.selo{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--cor);color:#fff;font-family:Georgia,serif;font-size:1.1rem}
+nav ul{display:flex;gap:4px;list-style:none;margin:0;padding:0}nav a{display:block;padding:10px 12px;border-radius:10px;color:var(--suave);text-decoration:none;font-size:.95rem}nav a:hover{background:var(--fundo);color:var(--tinta)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:12px 22px;border-radius:999px;font-weight:700;text-decoration:none;border:0;cursor:pointer;font-size:1rem;transition:transform .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-1px);box-shadow:var(--sombra)}
+.btn-zap{background:#0a7d3b;color:#fff}.btn-cor{background:var(--cor);color:#fff}.btn-claro{background:#fff;color:var(--tinta);border:1px solid var(--linha)}
+.btn svg{width:20px;height:20px;flex:none}
+.hero{position:relative;overflow:hidden;background:linear-gradient(135deg,var(--cor-escura),var(--cor));color:#fff}
+.hero:after{content:"";position:absolute;inset:auto -10% -40% auto;width:60vw;height:60vw;max-width:720px;max-height:720px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.14),transparent 65%)}
+.hero .wrap{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1fr);gap:32px;align-items:center;padding-top:56px;padding-bottom:64px}
+.hero .wrap>*,.duas>*,.grade>*,.rodape>*{min-width:0}
+h1,h2,h3,p,li{overflow-wrap:anywhere}
+.hero p.sub{font-size:1.15rem;color:rgba(255,255,255,.88);max-width:36em}
+.chips{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 0;padding:0;list-style:none}
+.chips li{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,.14);font-size:.92rem}
+.acoes{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}.hero .btn-claro{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.35)}
+.hero-arte{justify-self:center;width:100%;max-width:420px;filter:drop-shadow(0 24px 40px rgba(0,0,0,.25))}
+section{padding:72px 0}.cinza{background:var(--fundo)}
+.olho{display:inline-block;font-size:.8rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--cor);margin-bottom:10px}
+.intro{max-width:640px;margin-bottom:36px;color:var(--suave)}
+.grade{display:grid;gap:18px}
+.card{background:#fff;border:1px solid var(--linha);border-radius:var(--raio);padding:26px;transition:box-shadow .2s ease,transform .2s ease}
+.card:hover{box-shadow:var(--sombra);transform:translateY(-2px)}
+.card .ic{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:color-mix(in srgb,var(--cor) 12%,#fff);color:var(--cor);margin-bottom:14px}
+.card .ic svg{width:24px;height:24px}.card p{color:var(--suave);margin:0}
+.duas{display:grid;gap:40px;align-items:center}
+.lista-dif{display:grid;gap:14px;margin:24px 0 0;padding:0;list-style:none}
+.lista-dif li{display:grid;grid-template-columns:28px 1fr;gap:12px}.lista-dif svg{width:28px;height:28px;color:var(--cor)}
+.lista-dif strong{display:block}
+.nota{display:flex;flex-wrap:wrap;align-items:center;gap:24px;background:#fff;border:1px solid var(--linha);border-radius:var(--raio);padding:30px}
+.nota .num{font-family:Georgia,serif;font-size:3.4rem;font-weight:700;line-height:1;color:var(--cor)}
+.estrelas{color:#b45309;letter-spacing:2px;font-size:1.3rem}
+details{background:#fff;border:1px solid var(--linha);border-radius:14px;padding:4px 20px;margin-bottom:12px}
+summary{cursor:pointer;font-weight:700;padding:14px 0;min-height:48px;list-style-position:outside}
+details p{color:var(--suave)}
+.contato-box{display:grid;gap:14px;margin:0;padding:0;list-style:none}
+.contato-box li{display:grid;grid-template-columns:24px 1fr;gap:12px}.contato-box svg{width:22px;height:22px;color:var(--cor);margin-top:3px}
+.contato-box a{font-weight:600}
+form{background:#fff;border:1px solid var(--linha);border-radius:var(--raio);padding:26px;display:grid;gap:14px}
+label{font-weight:600;font-size:.95rem;display:grid;gap:6px}
+input,textarea{font:inherit;padding:12px 14px;border:1px solid #c9ceda;border-radius:12px;width:100%;background:#fff;color:var(--tinta)}
+textarea{min-height:110px;resize:vertical}
+.aceite{display:flex;gap:10px;align-items:flex-start;font-weight:400;font-size:.92rem;color:var(--suave)}.aceite input{width:20px;height:20px;margin-top:2px;flex:none}
+.cta-faixa{background:var(--cor);color:#fff;border-radius:24px;padding:40px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between}
+.cta-faixa h2{margin:0;color:#fff}
+footer{background:#0f1218;color:#c7cbd6;padding:48px 0 90px;font-size:.95rem}footer a{color:#fff}
+.rodape{display:grid;gap:28px}.rodape h3{color:#fff;font-size:1rem;font-family:inherit}
+.redes{display:flex;gap:12px;margin-top:12px}.redes a{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.08)}
+.redes svg{width:20px;height:20px}
+.flutuante{position:fixed;right:18px;bottom:18px;z-index:30;width:60px;height:60px;border-radius:50%;background:#0a7d3b;color:#fff;display:grid;place-items:center;box-shadow:0 10px 25px -5px rgba(0,0,0,.35)}
+.flutuante svg{width:30px;height:30px}
+@media(min-width:760px){.hero .wrap{grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);padding-top:80px;padding-bottom:96px}.grade-3{grid-template-columns:repeat(3,1fr)}.grade-2{grid-template-columns:repeat(2,1fr)}.duas{grid-template-columns:1fr 1fr}.rodape{grid-template-columns:2fr 1fr 1fr}}
+@media(max-width:959px){nav{display:none}}
+@media(max-width:759px){.topo .btn{min-height:44px;padding:10px 16px;font-size:.95rem}section{padding:56px 0}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<header>
+  <div class="wrap topo">
+    <a class="marca" href="#inicio" aria-label="{{ c.empresa }}, início"><span class="selo" aria-hidden="true">{{ iniciais }}</span><span>{{ c.empresa }}</span></a>
+    <nav aria-label="Principal"><ul>
+      <li><a href="#servicos">Serviços</a></li><li><a href="#sobre">Sobre</a></li><li><a href="#duvidas">Dúvidas</a></li><li><a href="#contato">Contato</a></li>
+    </ul></nav>
+    {% if zap_link %}<a class="btn btn-zap" href="{{ zap_link }}" rel="noopener">{{ icon_zap|safe }} WhatsApp</a>{% elif tel_link %}<a class="btn btn-cor" href="{{ tel_link }}">Ligar agora</a>{% endif %}
+  </div>
+</header>
+
+<main id="conteudo">
+<section class="hero" id="inicio" aria-labelledby="t-hero">
+  <div class="wrap">
+    <div>
+      <p class="olho" style="color:rgba(255,255,255,.85)">{{ c.categoria|default:"Atendimento" }} · {{ c.cidade }}/{{ c.uf }}</p>
+      <h1 id="t-hero">{{ c.headline }}</h1>
+      <p class="sub">{{ c.subheadline }}</p>
+      <div class="acoes">
+        {% if zap_link %}<a class="btn btn-zap" href="{{ zap_link }}" rel="noopener">{{ icon_zap|safe }} {% if agendamento %}Agendar pelo WhatsApp{% else %}Falar no WhatsApp{% endif %}</a>{% endif %}
+        {% if c.link_agendamento %}<a class="btn btn-claro" href="{{ c.link_agendamento }}" rel="noopener">Agendar online</a>{% endif %}
+        {% if tel_link %}<a class="btn btn-claro" href="{{ tel_link }}">{{ icon_tel|safe }} Ligue: {{ telefone_fmt }}</a>{% endif %}
+      </div>
+      <ul class="chips" aria-label="Destaques">
+        {% if c.nota_google %}<li><span aria-hidden="true">★</span> {{ nota_fmt }} no Google{% if c.n_avaliacoes %} ({{ c.n_avaliacoes }} avaliações){% endif %}</li>{% endif %}
+        <li>{{ icon_pin|safe }} {% if c.bairro %}{{ c.bairro }}, {% endif %}{{ c.cidade }}</li>
+        <li>{{ icon_relogio|safe }} {{ c.horario }}</li>
+      </ul>
+    </div>
+    <img class="hero-arte" src="img/destaque.svg" alt="Ilustração de {{ c.categoria|default:'atendimento'|lower }} da {{ c.empresa }}" width="420" height="420" fetchpriority="high">
+  </div>
+</section>
+
+<section id="servicos" aria-labelledby="t-serv">
+  <div class="wrap">
+    <span class="olho">Serviços</span>
+    <h2 id="t-serv">Como podemos ajudar você</h2>
+    <p class="intro">Conheça os principais serviços da {{ c.empresa }} em {{ c.cidade }}. Tem alguma dúvida? Fale com a gente {% if zap_link %}pelo WhatsApp{% else %}por telefone{% endif %}.</p>
+    <div class="grade grade-3">
+      {% for s in c.servicos %}<article class="card"><div class="ic" aria-hidden="true">{{ icon_categoria|safe }}</div><h3>{{ s.titulo }}</h3><p>{{ s.descricao }}</p></article>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section id="sobre" class="cinza" aria-labelledby="t-sobre">
+  <div class="wrap duas">
+    <img src="img/sobre.svg" alt="Ilustração do atendimento da {{ c.empresa }}" width="520" height="420" loading="lazy">
+    <div>
+      <span class="olho">Sobre nós</span>
+      <h2 id="t-sobre">Conheça a {{ c.empresa }}</h2>
+      {% for par in sobre_paragrafos %}<p>{{ par }}</p>{% endfor %}
+      <ul class="lista-dif">
+        {% for d in c.diferenciais %}<li>{{ icon_check|safe }}<div><strong>{{ d.titulo }}</strong>{{ d.descricao }}</div></li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="avaliacoes" aria-labelledby="t-aval">
+  <div class="wrap">
+    <span class="olho">Avaliações</span>
+    <h2 id="t-aval">O que dizem nossos clientes</h2>
+    <div class="nota">
+      {% if c.nota_google %}
+      <div><span class="num">{{ nota_fmt }}</span></div>
+      <div><div class="estrelas" aria-hidden="true">★★★★★</div><p style="margin:0">Nota média no Google{% if c.n_avaliacoes %}, com {{ c.n_avaliacoes }} avaliações{% endif %}.</p></div>
+      {% else %}
+      <div><p style="margin:0">A opinião de quem já foi atendido ajuda outras pessoas a escolher com segurança.</p></div>
+      {% endif %}
+      <a class="btn btn-claro" href="{{ avaliacoes_link }}" rel="noopener">Ver avaliações no Google</a>
+    </div>
+  </div>
+</section>
+
+<section id="duvidas" class="cinza" aria-labelledby="t-faq">
+  <div class="wrap" style="max-width:820px">
+    <span class="olho">Dúvidas frequentes</span>
+    <h2 id="t-faq">Perguntas frequentes</h2>
+    {% for f in c.faq %}<details><summary>{{ f.pergunta }}</summary><p>{{ f.resposta }}</p></details>{% endfor %}
+  </div>
+</section>
+
+<section id="contato" aria-labelledby="t-contato">
+  <div class="wrap duas" style="align-items:start">
+    <div>
+      <span class="olho">Contato</span>
+      <h2 id="t-contato">Fale com a {{ c.empresa }}</h2>
+      <p class="intro" style="margin-bottom:24px">Atendimento em {{ c.cidade }}/{{ c.uf }}. Escolha o canal mais prático para você.</p>
+      <ul class="contato-box">
+        {% if endereco_completo %}<li>{{ icon_pin|safe }}<div><strong>Endereço</strong><br>{{ endereco_completo }}<br><a href="{{ mapa_link }}" rel="noopener">Como chegar (abrir no mapa)</a></div></li>{% endif %}
+        {% if tel_link %}<li>{{ icon_tel|safe }}<div><strong>Telefone</strong><br><a href="{{ tel_link }}">{{ telefone_fmt }}</a></div></li>{% endif %}
+        {% if zap_link %}<li>{{ icon_zap|safe }}<div><strong>WhatsApp</strong><br><a href="{{ zap_link }}" rel="noopener">{{ whatsapp_fmt }}</a></div></li>{% endif %}
+        {% if c.email %}<li>{{ icon_mail|safe }}<div><strong>E-mail</strong><br><a href="mailto:{{ c.email }}">{{ c.email }}</a></div></li>{% endif %}
+        <li>{{ icon_relogio|safe }}<div><strong>Horário de atendimento</strong><br>{{ c.horario }}</div></li>
+      </ul>
+      <img src="img/contato.svg" alt="Ilustração de mapa com a localização da {{ c.empresa }}" width="520" height="300" loading="lazy" style="margin-top:28px">
+    </div>
+    <form id="form-contato" action="{{ zap_link|default:tel_link }}" method="get" aria-labelledby="t-form">
+      <h3 id="t-form">Envie sua mensagem</h3>
+      <label>Nome<input name="nome" autocomplete="name" required></label>
+      <label>Telefone<input name="telefone" type="tel" autocomplete="tel" inputmode="tel" required></label>
+      <label>Mensagem<textarea name="mensagem" required></textarea></label>
+      <label class="aceite"><input type="checkbox" name="aceite" required> Concordo com o uso destes dados para retorno do contato, conforme a <a href="politica-de-privacidade.html">Política de Privacidade</a>.</label>
+      <button class="btn btn-cor" type="submit">Enviar mensagem</button>
+    </form>
+  </div>
+</section>
+
+<section aria-label="Chamada final" style="padding-top:0">
+  <div class="wrap">
+    <div class="cta-faixa">
+      <h2>Pronto para ser atendido?</h2>
+      {% if zap_link %}<a class="btn btn-zap" href="{{ zap_link }}" rel="noopener">{{ icon_zap|safe }} Chamar no WhatsApp</a>{% elif tel_link %}<a class="btn btn-claro" href="{{ tel_link }}">Ligar agora</a>{% endif %}
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap rodape">
+    <div>
+      <h3>{{ c.empresa }}</h3>
+      <p>{{ c.categoria|default:"Atendimento" }} em {{ c.cidade }}/{{ c.uf }}.{% if cnpj_fmt %}<br>CNPJ {{ cnpj_fmt }}{% endif %}</p>
+      {% if c.instagram or c.facebook %}<div class="redes">
+        {% if c.instagram %}<a href="{{ c.instagram }}" rel="noopener" aria-label="Instagram">{{ icon_insta|safe }}</a>{% endif %}
+        {% if c.facebook %}<a href="{{ c.facebook }}" rel="noopener" aria-label="Facebook">{{ icon_face|safe }}</a>{% endif %}
+      </div>{% endif %}
+    </div>
+    <div><h3>Navegação</h3><p><a href="#servicos">Serviços</a><br><a href="#sobre">Sobre nós</a><br><a href="#contato">Contato</a></p></div>
+    <div><h3>Informações</h3><p><a href="politica-de-privacidade.html">Política de Privacidade</a><br>© {{ c.ano }} {{ c.empresa }}</p></div>
+  </div>
+</footer>
+{% if zap_link %}<a class="flutuante" href="{{ zap_link }}" rel="noopener" aria-label="Falar no WhatsApp">{{ icon_zap|safe }}</a>{% endif %}
+<script>
+document.getElementById("form-contato").addEventListener("submit",function(e){
+  var f=e.target,msg="Olá! Meu nome é "+f.nome.value+" ("+f.telefone.value+"). "+f.mensagem.value;
+  {% if zap_link %}e.preventDefault();window.location.href="{{ zap_base }}?text="+encodeURIComponent(msg);{% elif c.email %}e.preventDefault();window.location.href="mailto:{{ c.email }}?subject=Contato pelo site&body="+encodeURIComponent(msg);{% endif %}
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "D:\\Projetos\\auditor-site\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["D:\\Projetos\\auditor-site\\backend\\manage.py", "runserver", "8000", "--noreload"],
+      "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "D:\\Projetos\\auditor-site\\frontend", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}
