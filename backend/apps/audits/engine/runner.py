@@ -58,9 +58,9 @@ class AuditRunner:
             AuditStep.objects.get_or_create(audit=self.audit, etapa=key, defaults={"ordem": order})
 
     @contextmanager
-    def step(self, key):
+    def step(self, key, always=False):
         step = AuditStep.objects.get(audit=self.audit, etapa=key)
-        if time.monotonic() > self.deadline:
+        if time.monotonic() > self.deadline and not always:
             step.status = AuditStep.Status.SKIPPED
             step.erro = "Tempo máximo da auditoria atingido"
             step.save()
@@ -109,15 +109,14 @@ class AuditRunner:
             self._step_crawl()
             self._step_browser()
             # Lighthouse depois das capturas (Chromium disputando CPU distorce as métricas) e só se o site
-            # respondeu; roda em paralelo com as etapas leves seguintes.
+            # respondeu; enquanto ele roda, seguem as etapas leves.
             lh_future = pool.submit(self._lighthouse_job, self.ctx.url) if lighthouse_command() else None
-            self._step_lighthouse(lh_future)
             self._step_accessibility()
             self._step_security()
             self._step_tech()
-            self._step_rules()
-            self._step_ai()
-            self._step_scoring()
+            self._step_lighthouse(lh_future)
+            self._step_rules()  # depois do Lighthouse: as regras de desempenho usam as métricas dele
+            self._step_scoring()  # sempre roda: é instantâneo e a nota não depende da IA
             audit.status = Audit.Status.DONE
         except AuditAborted as exc:
             audit.status = Audit.Status.FAILED
@@ -132,7 +131,26 @@ class AuditRunner:
         if audit.status == Audit.Status.DONE and self.company.status_lead == LeadStatus.FOUND:
             self.company.status_lead = LeadStatus.AUDITED
             self.company.save(update_fields=["status_lead", "atualizado_em"])
+        if audit.status == Audit.Status.DONE:
+            self._queue_ai()
         return audit
+
+    def _queue_ai(self):
+        """Etapa 8 em job próprio (fila "ai"): a auditoria termina com nota sem esperar a IA."""
+        from apps.core.jobs import enqueue
+
+        from ..tasks import ai_analysis
+
+        step = AuditStep.objects.get(audit=self.audit, etapa="ia")
+        if not ai.is_configured():
+            step.status = AuditStep.Status.SKIPPED
+            step.erro = "IA desativada (configure GEMINI_API_KEY no .env)"
+            step.save(update_fields=["status", "erro"])
+            return
+        step.status = AuditStep.Status.PENDING
+        step.erro = ""
+        step.save(update_fields=["status", "erro"])
+        enqueue(ai_analysis, self.audit.pk)
 
     @staticmethod
     def _lighthouse_job(url):
@@ -169,6 +187,8 @@ class AuditRunner:
                 "robots_txt": crawl.robots_txt is not None,
                 "robots_permite": crawl.robots_allows_home,
                 "sitemaps": crawl.sitemap_urls,
+                # Texto das páginas para a análise de IA, que roda em job separado depois da auditoria.
+                "textos": [{"url": p.final_url, "texto": p.text[:3000]} for p in crawl.pages[:6] if p.ok],
             }
             if crawl.blocked:
                 raise AuditAborted("O site bloqueou o robô (Cloudflare/captcha). Marque como não auditável "
@@ -317,14 +337,8 @@ class AuditRunner:
             ]
             step.resultado = summary
 
-    def _step_ai(self):
-        with self.step("ia") as step:
-            if step is None:
-                return
-            run_ai_analysis(self.audit, self.ctx, step)
-
     def _step_scoring(self):
-        with self.step("pontuacao") as step:
+        with self.step("pontuacao", always=True) as step:
             if step is None:
                 return
             mobile_metrics = self.ctx.mobile.metrics if self.ctx.mobile else None
@@ -374,7 +388,9 @@ def run_ai_analysis(audit: Audit, ctx: AuditContext | None, step: AuditStep):
                     mobile_png = fh.read()
         crawl_step = audit.steps.filter(etapa="rastreio").first()
         pages = (crawl_step.resultado or {}).get("paginas", []) if crawl_step else []
-        texto = "Páginas: " + ", ".join(p["url"] for p in pages)
+        textos = (crawl_step.resultado or {}).get("textos", []) if crawl_step else []
+        texto = ("\n\n".join(f"[{t['url']}]\n{t['texto']}" for t in textos)
+                 or "Páginas: " + ", ".join(p["url"] for p in pages))
     if not desktop_png and not mobile_png and not texto:
         raise StepSkipped("Sem capturas nem texto para analisar")
 

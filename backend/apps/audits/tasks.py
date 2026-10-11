@@ -1,4 +1,5 @@
 import logging
+import time
 
 from celery import shared_task
 
@@ -30,6 +31,7 @@ def ai_analysis(self, audit_id):
     step.status = AuditStep.Status.RUNNING
     step.erro = ""
     step.save()
+    started = time.monotonic()
     try:
         run_ai_analysis(audit, None, step)
         step.status = AuditStep.Status.DONE
@@ -40,5 +42,6 @@ def ai_analysis(self, audit_id):
         logger.exception("ai_analysis falhou")
         step.status = AuditStep.Status.FAILED
         step.erro = str(exc)[:500]
+    step.duracao_ms = int((time.monotonic() - started) * 1000)
     step.save()
     return audit_id

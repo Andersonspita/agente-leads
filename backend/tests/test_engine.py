@@ -227,3 +227,21 @@ def test_ai_via_gemini_openai_compatible_endpoint(settings):
     with mock.patch("requests.post", return_value=limited), pytest.raises(ai.AIUnavailable):
         ai.analyze(empresa="X", categoria="", cidade="", desktop_png=None, mobile_png=None, texto="t",
                    achados_regras=[])
+
+
+@pytest.mark.django_db
+def test_audit_finishes_with_score_and_queues_ai_separately(site, city, category, settings):
+    settings.GEMINI_API_KEY = "x"
+    company = Company.objects.create(nome="Clínica Exemplo", municipality=city, category=category)
+    audit = Audit.objects.create(website=Website.objects.create(company=company, url=site + "/"))
+    with mock.patch.object(runner, "browser_available", return_value=False), \
+         mock.patch.object(runner, "lighthouse_command", return_value=None), \
+         mock.patch.object(runner.security, "check_security", return_value={}), \
+         mock.patch("apps.core.jobs.enqueue") as enqueue:
+        runner.AuditRunner(audit).run()
+    audit.refresh_from_db()
+    assert audit.status == Audit.Status.DONE and audit.nota_geral is not None
+    assert audit.steps.get(etapa="ia").status == "pendente"
+    assert enqueue.call_args.args[0].name.endswith("ai_analysis") and enqueue.call_args.args[1] == audit.pk
+    textos = audit.steps.get(etapa="rastreio").resultado["textos"]
+    assert textos and "Clínica Exemplo" in textos[0]["texto"]

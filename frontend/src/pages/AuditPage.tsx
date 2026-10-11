@@ -16,7 +16,13 @@ export function useAudit(id: string | undefined) {
   return useQuery({
     queryKey: ["audit", id],
     queryFn: () => api.get<AuditDetail>(`audits/${id}`),
-    refetchInterval: (q) => (q.state.data && ["na_fila", "executando"].includes(q.state.data.status) ? 2000 : false),
+    refetchInterval: (q) => {
+      const d = q.state.data;
+      if (!d) return false;
+      if (["na_fila", "executando"].includes(d.status)) return 2000;
+      const ia = d.steps.find((st) => st.etapa === "ia");  // a IA roda em job próprio depois da auditoria
+      return ia && ["pendente", "executando"].includes(ia.status) ? 4000 : false;
+    },
   });
 }
 
@@ -155,7 +161,12 @@ export default function AuditPage() {
                       </div>
                     </section>
                   ))}
-                  {aiStep && aiStep.status !== "ok" && (
+                  {aiStep && ["pendente", "executando"].includes(aiStep.status) && (
+                    <p className="flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted">
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden /> Análise qualitativa por IA em andamento. Os achados aparecem aqui como pendentes de revisão.
+                    </p>
+                  )}
+                  {aiStep && ["falhou", "nao_medido"].includes(aiStep.status) && (
                     <div className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted">
                       <span>
                         <Sparkles className="mr-1 inline size-3.5" aria-hidden />
