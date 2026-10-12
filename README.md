@@ -120,7 +120,7 @@ A IA usa *structured outputs* (JSON validado por schema, uma nova tentativa se v
 
 ```bash
 cd backend
-../.venv/Scripts/python -m pytest --cov=apps       # 87 testes, 82% de cobertura
+../.venv/Scripts/python -m pytest --cov=apps       # 108 testes, 82% de cobertura
 cd ../frontend && npm run build                     # type-check + build
 ```
 
