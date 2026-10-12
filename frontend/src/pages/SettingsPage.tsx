@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Plus, Trash2, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 import { api } from "@/api/client";
 import type { Brand, Capabilities, Category, ChecklistItem, Dimensao, PromptVersion, RuleRow, UserRow } from "@/api/types";
@@ -10,14 +10,31 @@ import { SeverityBadge } from "@/components/domain";
 import { useToast } from "@/components/toast";
 import { Badge, Button, Card, CardHeader, Checkbox, Dialog, Field, Input, Loading, Select, Tabs, Textarea } from "@/components/ui";
 import { DIMENSIONS, DIMENSION_ORDER } from "@/lib/labels";
+import { confirmDiscard, useUnsavedChanges } from "@/lib/useUnsavedChanges";
 import { cn, fmtDateTime, fmtMoney } from "@/lib/utils";
 
 type Tab = "categorias" | "marca" | "regras" | "prompts" | "usuarios" | "integracoes";
+
+// O editor aberto informa se tem alterações não salvas; a tela avisa antes de trocar de aba ou sair.
+const DirtyContext = createContext<(dirty: boolean) => void>(() => {});
+
+function useReportDirty(dirty: boolean) {
+  const report = useContext(DirtyContext);
+  useEffect(() => {
+    report(dirty);
+    return () => report(false);
+  }, [report, dirty]);
+}
+
+const splitList = (v: string) => v.split(",").map((t) => t.trim()).filter(Boolean);
+const sameList = (a: string[], b: string[]) => a.join("\n") === b.join("\n");
 
 export default function SettingsPage() {
   const { me } = useAuth();
   const admin = !!me?.user?.is_admin;
   const [tab, setTab] = useState<Tab>("categorias");
+  const [dirty, setDirty] = useState(false);
+  useUnsavedChanges(dirty);
   const items: { value: Tab; label: string }[] = [
     { value: "categorias", label: "Categorias e pesos" },
     { value: "marca", label: "Marca do relatório" },
@@ -34,19 +51,21 @@ export default function SettingsPage() {
     <>
       <PageHeader title="Configurações" description={admin ? "Administração do sistema" : "Somente o Administrador altera estas configurações"} />
       <PageBody>
-        <Tabs value={tab} onChange={setTab} items={items} />
-        {tab === "categorias" && <CategoriesTab admin={admin} />}
-        {tab === "marca" && <BrandTab admin={admin} />}
-        {tab === "regras" && <RulesTab admin={admin} />}
-        {tab === "prompts" && admin && <PromptsTab />}
-        {tab === "usuarios" && admin && <UsersTab />}
-        {tab === "integracoes" && <IntegrationsTab admin={admin} />}
+        <Tabs value={tab} onChange={(t) => t !== tab && confirmDiscard(dirty) && setTab(t)} items={items} />
+        <DirtyContext.Provider value={setDirty}>
+          {tab === "categorias" && <CategoriesTab admin={admin} dirty={dirty} />}
+          {tab === "marca" && <BrandTab admin={admin} />}
+          {tab === "regras" && <RulesTab admin={admin} />}
+          {tab === "prompts" && admin && <PromptsTab />}
+          {tab === "usuarios" && admin && <UsersTab />}
+          {tab === "integracoes" && <IntegrationsTab admin={admin} />}
+        </DirtyContext.Provider>
       </PageBody>
     </>
   );
 }
 
-function CategoriesTab({ admin }: { admin: boolean }) {
+function CategoriesTab({ admin, dirty }: { admin: boolean; dirty: boolean }) {
   const { data, isLoading } = useQuery({ queryKey: ["categories"], queryFn: () => api.get<Category[]>("categories") });
   const [selected, setSelected] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
@@ -55,11 +74,11 @@ function CategoriesTab({ admin }: { admin: boolean }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
       <Card>
-        <CardHeader title="Categorias" actions={admin && <Button size="sm" variant="outline" onClick={() => setCreating(true)}><Plus className="size-3.5" /> Nova</Button>} />
+        <CardHeader title="Categorias" actions={admin && <Button size="sm" variant="outline" onClick={() => confirmDiscard(dirty) && setCreating(true)}><Plus className="size-3.5" /> Nova</Button>} />
         <ul className="p-1">
           {data?.map((c) => (
             <li key={c.id}>
-              <button onClick={() => setSelected(c.id)} className={cn("flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm", category?.id === c.id ? "bg-brand/10 text-brand dark:text-blue-300" : "hover:bg-surface-2")}>
+              <button onClick={() => c.id !== category?.id && confirmDiscard(dirty) && setSelected(c.id)} className={cn("flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm", category?.id === c.id ? "bg-brand/10 text-brand dark:text-blue-300" : "hover:bg-surface-2")}>
                 {c.nome}
                 {!c.ativo && <Badge className="bg-surface-2 text-muted">inativa</Badge>}
               </button>
@@ -82,6 +101,13 @@ function CategoryEditor({ category, admin }: { category: Category; admin: boolea
   const [osmTags, setOsmTags] = useState(category.osm_tags.join(", "));
   const [item, setItem] = useState({ item: "", tipo: "secao" as ChecklistItem["tipo"], obrigatorio: true });
   const total = Object.values(weights).reduce((a, b) => a + b, 0);
+  useReportDirty(
+    DIMENSION_ORDER.some((d) => weights[d] !== Math.round(category.pesos[d] * 100)) ||
+      !sameList(splitList(terms), category.termos_busca) ||
+      !sameList(splitList(cnaes), category.cnaes) ||
+      !sameList(splitList(osmTags), category.osm_tags) ||
+      !!item.item.trim(),
+  );
   const invalidate = () => client.invalidateQueries({ queryKey: ["categories"] });
   const onError = (e: Error) => toast(e.message, "error");
 
@@ -96,9 +122,9 @@ function CategoryEditor({ category, admin }: { category: Category; admin: boolea
   const saveInfo = useMutation({
     mutationFn: (extra: Partial<Category> = {}) =>
       api.patch(`categories/${category.id}`, {
-        termos_busca: terms.split(",").map((t) => t.trim()).filter(Boolean),
-        cnaes: cnaes.split(",").map((t) => t.trim()).filter(Boolean),
-        osm_tags: osmTags.split(",").map((t) => t.trim()).filter(Boolean),
+        termos_busca: splitList(terms),
+        cnaes: splitList(cnaes),
+        osm_tags: splitList(osmTags),
         ...extra,
       }),
     onSuccess: () => {
@@ -223,6 +249,7 @@ function BrandTab({ admin }: { admin: boolean }) {
   useEffect(() => {
     if (data) setForm(data);
   }, [data]);
+  useReportDirty(!!form && !!data && (JSON.stringify(form) !== JSON.stringify(data) || !!logo));
   const save = useMutation({
     mutationFn: () => {
       const fd = new FormData();
@@ -233,6 +260,7 @@ function BrandTab({ admin }: { admin: boolean }) {
     },
     onSuccess: (b) => {
       client.setQueryData(["brand"], b);
+      setLogo(null);
       toast("Marca atualizada. Vale para os próximos relatórios e PDFs.");
     },
     onError: (e) => toast(e.message, "error"),
@@ -299,6 +327,7 @@ function PromptsTab() {
   const caps = useQuery({ queryKey: ["capabilities"], queryFn: () => api.get<Capabilities>("settings/capabilities") });
   const { data } = useQuery({ queryKey: ["prompts"], queryFn: () => api.get<PromptVersion[]>("prompts") });
   const [text, setText] = useState("");
+  useReportDirty(!!text.trim());
   const create = useMutation({
     mutationFn: () => api.post("prompts", { nome: "analise_qualitativa", texto: text, modelo: caps.data?.modelo_ia ?? "", ativo: true }),
     onSuccess: () => {
@@ -342,6 +371,7 @@ function UsersTab() {
   const toast = useToast();
   const { data } = useQuery({ queryKey: ["users"], queryFn: () => api.get<{ results: UserRow[] }>("users") });
   const [form, setForm] = useState({ email: "", first_name: "", role: "analista", password: "" });
+  useReportDirty(!!(form.email || form.first_name || form.password));
   const invalidate = () => client.invalidateQueries({ queryKey: ["users"] });
   const create = useMutation({ mutationFn: () => api.post("users", form), onSuccess: () => { invalidate(); setForm({ email: "", first_name: "", role: "analista", password: "" }); toast("Conta criada. O 2FA é configurado no primeiro login."); }, onError: (e) => toast(e.message, "error") });
   const toggle = useMutation({ mutationFn: (u: UserRow) => api.patch(`users/${u.id}`, { is_active: !u.is_active }), onSuccess: invalidate });

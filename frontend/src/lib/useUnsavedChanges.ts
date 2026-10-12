@@ -3,6 +3,11 @@ import { useBeforeUnload, useBlocker } from "react-router-dom";
 
 const MESSAGE = "Há alterações não salvas. Sair mesmo assim?";
 
+/** Para trocas dentro da mesma tela (abas, item selecionado), que o roteador não vê. */
+export function confirmDiscard(dirty: boolean) {
+  return !dirty || window.confirm(MESSAGE);
+}
+
 /** Avisa antes de sair da tela (link do painel, voltar, fechar ou recarregar a aba) com alterações não salvas. */
 export function useUnsavedChanges(dirty: boolean) {
   const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname);
