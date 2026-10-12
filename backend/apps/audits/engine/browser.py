@@ -128,6 +128,27 @@ def browser_available() -> bool:
     return True
 
 
+def block_internal(context):
+    """O navegador também não carrega nada de endereços internos (página, redirecionamentos, scripts)."""
+    from urllib.parse import urlparse
+
+    from .crawler import is_public_url
+
+    sites_host = urlparse(settings.SITES_BASE_URL).netloc
+    cache: dict[str, bool] = {}  # por host: evita resolver o DNS a cada arquivo da página
+
+    def handle(route):
+        url = route.request.url
+        if url.startswith(("data:", "blob:")):
+            return route.continue_()
+        host = urlparse(url).netloc
+        if host not in cache or host == sites_host:  # no host das prévias, a regra depende do caminho
+            cache[host] = is_public_url(url)
+        return route.continue_() if cache[host] else route.abort("blockedbyclient")
+
+    context.route("**/*", handle)
+
+
 def run_browser(url: str, extra_pages: list[str], run_axe: bool = True) -> BrowserResult:
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
@@ -164,6 +185,7 @@ def _capture(browser, url, name, viewport, scale, timeout_ms, is_mobile=False, u
         viewport=viewport, device_scale_factor=scale, is_mobile=is_mobile, has_touch=is_mobile,
         user_agent=ua, locale="pt-BR", ignore_https_errors=True,
     )
+    block_internal(context)
     cap = ViewportCapture(name=name)
     page = context.new_page()
     home_host = urlparse(url).hostname or ""
@@ -205,6 +227,7 @@ def _capture(browser, url, name, viewport, scale, timeout_ms, is_mobile=False, u
 def _run_axe(browser, urls, timeout_ms) -> dict:
     script = AXE_PATH.read_text(encoding="utf-8")
     context = browser.new_context(viewport=DESKTOP, locale="pt-BR", ignore_https_errors=True)
+    block_internal(context)
     by_rule: dict[str, dict] = {}
     pages_ok = 0
     for target in urls:

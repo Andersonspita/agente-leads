@@ -39,14 +39,13 @@ def certificate_info(host: str, port: int = 443, timeout: int = 10) -> dict:
 
 
 def http_redirects_to_https(host: str) -> bool | None:
+    from .crawler import Crawler
+
     try:
-        resp = requests.get(
-            f"http://{host}/", timeout=15, allow_redirects=True,
-            headers={"User-Agent": settings.CRAWLER_USER_AGENT},
-        )
+        resp = Crawler().get(f"http://{host}/", timeout=15)
     except requests.RequestException:
         return None
-    return resp.url.startswith("https://")
+    return resp.url.startswith("https://")  # url da última resposta, depois dos redirecionamentos
 
 
 def check_security(home_url: str, final_url: str, headers: dict, mixed_content: list[str]) -> dict:

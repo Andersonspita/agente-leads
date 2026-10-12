@@ -3,6 +3,8 @@
 Respeita robots.txt, no máximo 1 requisição/s por domínio, User-Agent identificado
 e apenas páginas públicas (PRD 1.6).
 """
+import ipaddress
+import socket
 import threading
 import time
 from dataclasses import dataclass, field
@@ -19,6 +21,41 @@ PRIORITY_WORDS = (
 )
 SKIP_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".zip", ".doc", ".docx",
                    ".xls", ".xlsx", ".mp4", ".mp3")
+
+
+class BlockedURL(requests.RequestException):
+    """Endereço interno (rede privada, loopback, metadados da nuvem): o robô não acessa."""
+
+
+def is_public_url(url: str) -> bool:
+    """O robô só visita endereços públicos da internet (proteção contra SSRF).
+
+    Exceção: as prévias de sites gerados (/s/...) no host configurado em SITES_BASE_URL.
+    shortcut: resolve o DNS antes do acesso, sem fixar o IP; um DNS que muda entre a checagem e a
+    conexão (DNS rebinding) passaria. Se virar risco real, conectar no IP já validado.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    sites = urlparse(settings.SITES_BASE_URL)
+    if parsed.netloc == sites.netloc and parsed.path.startswith("/s/"):
+        return True
+    if settings.CRAWLER_ALLOW_PRIVATE:
+        return True
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, parsed.port or 443, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        return True  # não resolve: a própria requisição falha logo em seguida
+    return all(ipaddress.ip_address(info[4][0]).is_global for info in infos)
+
+
+def check_public(url: str):
+    if not is_public_url(url):
+        raise BlockedURL(f"Endereço interno bloqueado: {url}")
+
+
+MAX_REDIRECTS = 5
+MAX_BODY_BYTES = 3_000_000
 
 
 class DomainRateLimiter:
@@ -95,10 +132,20 @@ class Crawler:
         })
 
     def get(self, url: str, **kwargs) -> requests.Response:
-        rate_limiter.wait(urlparse(url).hostname or "")
+        """GET que confere cada endereço, inclusive cada redirecionamento, antes de acessar."""
         kwargs.setdefault("timeout", settings.CRAWLER_PAGE_TIMEOUT)
-        kwargs.setdefault("allow_redirects", True)
-        return self.session.get(url, **kwargs)
+        kwargs.pop("allow_redirects", None)
+        history = []
+        for _ in range(MAX_REDIRECTS + 1):
+            check_public(url)
+            rate_limiter.wait(urlparse(url).hostname or "")
+            resp = self.session.get(url, allow_redirects=False, **kwargs)
+            if not resp.is_redirect:
+                resp.history = history
+                return resp
+            history.append(resp)
+            url = urljoin(url, resp.headers["location"])
+        raise requests.TooManyRedirects(f"Mais de {MAX_REDIRECTS} redirecionamentos")
 
     def fetch_page(self, url: str) -> Page:
         started = time.monotonic()

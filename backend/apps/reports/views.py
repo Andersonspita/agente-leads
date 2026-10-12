@@ -1,3 +1,5 @@
+import re
+
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
@@ -115,14 +117,22 @@ def report_preview(request, pk):
     return render(request, "reports/public.html", build_report_context(report))
 
 
+LINK_PREVIEW_BOTS = re.compile(
+    r"bot|crawl|spider|preview|whatsapp|facebookexternalhit|facebookcatalog|telegram|slack|discord|skype|"
+    r"linkedin|embedly|pinterest|vkshare|curl|wget|python-requests|headless|lighthouse",
+    re.I,
+)
+
+
 @never_cache
 def public_report(request, token):
     """GET /r/{token} — página pública do relatório, sem login (TRD 2.6)."""
     report = Report.objects.select_related("audit__website__company").filter(token=token).first()
     if report is None or not report.is_available:
         return render(request, "reports/unavailable.html", status=404)
-    internal = request.user.is_authenticated
-    if not internal:
+    user_agent = request.META.get("HTTP_USER_AGENT", "")
+    # O WhatsApp, o Facebook etc. abrem o link sozinhos para montar a prévia: isso não é o cliente lendo.
+    if not request.user.is_authenticated and not LINK_PREVIEW_BOTS.search(user_agent):
         ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get("REMOTE_ADDR", "")
         ReportView.objects.create(report=report, user_agent=request.META.get("HTTP_USER_AGENT", "")[:300],
                                   ip_hash=hash_ip(ip))

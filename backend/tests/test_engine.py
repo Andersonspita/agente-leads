@@ -245,3 +245,32 @@ def test_audit_finishes_with_score_and_queues_ai_separately(site, city, category
     assert enqueue.call_args.args[0].name.endswith("ai_analysis") and enqueue.call_args.args[1] == audit.pk
     textos = audit.steps.get(etapa="rastreio").resultado["textos"]
     assert textos and "Clínica Exemplo" in textos[0]["texto"]
+
+
+@pytest.mark.parametrize("url,allowed", [
+    ("http://169.254.169.254/latest/meta-data/", False),  # metadados da AWS
+    ("http://127.0.0.1:8000/admin/", False),
+    ("http://10.0.0.5/", False),
+    ("http://[::1]/", False),
+    ("ftp://example.com/", False),
+    ("http://127.0.0.1:8000/s/abc/", True),  # prévia de site gerado (SITES_BASE_URL)
+    ("http://8.8.8.8/", True),
+])
+def test_crawler_blocks_internal_addresses(settings, url, allowed):
+    from apps.audits.engine.crawler import is_public_url
+
+    settings.CRAWLER_ALLOW_PRIVATE = False
+    settings.SITES_BASE_URL = "http://127.0.0.1:8000"
+    assert is_public_url(url) is allowed
+
+
+def test_crawler_blocks_redirect_to_internal_address(settings):
+    from apps.audits.engine.crawler import BlockedURL, Crawler
+
+    settings.CRAWLER_ALLOW_PRIVATE = False
+    settings.CRAWLER_MIN_INTERVAL = 0
+    redirect = mock.Mock(is_redirect=True, headers={"location": "http://169.254.169.254/latest/"})
+    crawler = Crawler()
+    with mock.patch("apps.audits.engine.crawler.is_public_url", side_effect=lambda u: "169.254" not in u), \
+         mock.patch.object(crawler.session, "get", return_value=redirect), pytest.raises(BlockedURL):
+        crawler.get("http://site-publico.com.br/")

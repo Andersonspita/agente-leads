@@ -168,13 +168,17 @@ def test_public_report_tracks_views_and_respects_revocation(api, audited):
     report = Report.objects.create(audit=audit)
     anon = APIClient()
 
-    r = anon.get(f"/r/{report.token}", HTTP_USER_AGENT="WhatsApp/2.0")
+    anon.get(f"/r/{report.token}", HTTP_USER_AGENT="WhatsApp/2.23.20.0")  # prévia do link: não conta
+    anon.get(f"/r/{report.token}", HTTP_USER_AGENT="facebookexternalhit/1.1")
+    assert ReportView.objects.count() == 0
+    phone = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36"
+    r = anon.get(f"/r/{report.token}", HTTP_USER_AGENT=phone)
     html = r.content.decode()
     assert r.status_code == 200
     assert "Clínica Sorriso" in html and "Site sem HTTPS" in html and "Design datado" not in html
     assert r["X-Robots-Tag"] == "noindex, nofollow"
     view = ReportView.objects.get()
-    assert view.user_agent == "WhatsApp/2.0" and len(view.ip_hash) == 64 and "127.0.0.1" not in view.ip_hash
+    assert view.user_agent == phone and len(view.ip_hash) == 64 and "127.0.0.1" not in view.ip_hash
 
     with mock.patch("apps.reports.views.enqueue"):
         api.post(f"/api/reports/{report.pk}/revoke")
@@ -233,3 +237,22 @@ def test_dashboard(api, audited):
     assert r.status_code == 200
     assert {row["status"] for row in r.data["funil"]} >= {"encontrado", "fechado"}
     assert r.data["revisao_pendente"] == 1
+
+
+def test_admin_site_requires_otp_when_2fa_is_on(settings):
+    import importlib
+
+    from django.contrib import admin
+    from django_otp.admin import OTPAdminSite
+
+    import config.urls
+
+    original = admin.site.__class__
+    settings.REQUIRE_2FA = True
+    try:
+        importlib.reload(config.urls)
+        assert isinstance(admin.site, OTPAdminSite)
+    finally:
+        admin.site.__class__ = original
+        settings.REQUIRE_2FA = False
+        importlib.reload(config.urls)

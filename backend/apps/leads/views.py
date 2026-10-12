@@ -11,7 +11,7 @@ from apps.audits.models import Audit
 from apps.core.activity import log_activity
 from apps.core.jobs import enqueue
 
-from .models import Company, LeadNote, Search, SearchResult, Website, normalize_domain
+from .models import Company, DoNotContact, LeadNote, Search, SearchResult, Website, normalize_domain
 from .serializers import (
     CompanyCreateSerializer,
     CompanyDetailSerializer,
@@ -129,6 +129,9 @@ class CompanyViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         url = ser.validated_data.pop("url", "")
         auditar = ser.validated_data.pop("auditar", False)
+        if url and DoNotContact.is_blocked_domain(normalize_domain(url)):
+            return Response({"detail": "Esta empresa pediu a exclusão dos dados (LGPD) e não pode ser prospectada."},
+                            status=status.HTTP_409_CONFLICT)
         with transaction.atomic():
             if url:
                 existing = Website.objects.filter(dominio=normalize_domain(url)).select_related("company").first()
@@ -155,12 +158,21 @@ class CompanyViewSet(viewsets.ModelViewSet):
             log_activity(self.request.user, "status_lead", company, de=before, para=company.status_lead)
 
     def perform_destroy(self, instance):
-        # Exclusão a pedido (LGPD): remove empresa, sites, auditorias, capturas e relatórios.
+        # Exclusão a pedido (LGPD): remove empresa, sites, auditorias, capturas, relatórios e PDFs,
+        # e põe a empresa na lista de "não contatar" para a prospecção não trazê-la de volta.
         from apps.audits.models import Artifact
+        from apps.reports.models import Report
 
         for artifact in Artifact.objects.filter(audit__website__company=instance):
             artifact.arquivo.delete(save=False)
-        log_activity(self.request.user, "empresa_excluida", instance, nome=instance.nome)
+        for report in Report.objects.filter(audit__website__company=instance).exclude(pdf=""):
+            report.pdf.delete(save=False)
+        DoNotContact.objects.create(cnpj=instance.cnpj, nome_normalizado=instance.nome_normalizado,
+                                    municipality_id=instance.municipality_id)
+        DoNotContact.objects.bulk_create([
+            DoNotContact(dominio=d) for d in instance.websites.exclude(origem="gerado").values_list("dominio", flat=True)
+        ])
+        log_activity(self.request.user, "empresa_excluida", instance)  # sem o nome: o pedido foi de exclusão
         instance.delete()
 
     @action(detail=True, methods=["post"])

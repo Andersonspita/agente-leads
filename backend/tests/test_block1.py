@@ -113,3 +113,56 @@ def test_stale_running_audits_are_marked_interrupted(api, blocked_audit, setting
     assert blocked_audit.status == Audit.Status.FAILED and "interrompida" in blocked_audit.erro
     assert fresh.status == Audit.Status.RUNNING
     assert api.get(f"/api/audits/{blocked_audit.pk}").data["status"] == "falhou"
+
+
+@pytest.mark.django_db
+def test_lgpd_deletion_removes_files_and_blocks_future_prospecting(api, city, category):
+    from django.core.files.base import ContentFile
+
+    from apps.leads.models import CnpjEstablishment, DoNotContact, Search
+    from apps.leads.services import run_search
+
+    company = Company.objects.create(nome="Odonto Apagar", municipality=city, category=category, cnpj="11222333000144")
+    site = Website.objects.create(company=company, url="https://odontoapagar.com.br")
+    audit = Audit.objects.create(website=site, status=Audit.Status.DONE)
+    report = Report.objects.create(audit=audit)
+    report.pdf.save("r.pdf", ContentFile(b"%PDF"), save=True)
+    pdf_path = report.pdf.path
+
+    assert api.delete(f"/api/companies/{company.pk}").status_code == 204
+    import os
+
+    assert not os.path.exists(pdf_path)
+    assert DoNotContact.objects.filter(cnpj="11222333000144").exists()
+    assert DoNotContact.objects.filter(dominio="odontoapagar.com.br").exists()
+
+    CnpjEstablishment.objects.create(cnpj="11222333000144", nome_fantasia="Odonto Apagar", cnae_principal="8630504",
+                                     municipality=city, uf="BA")
+    search = Search.objects.create(category=category, municipality=city)
+    run_search(search)
+    assert not Company.objects.filter(cnpj="11222333000144").exists()
+
+    r = api.post("/api/companies", {"nome": "Outro nome", "url": "https://www.odontoapagar.com.br"}, format="json")
+    assert r.status_code == 409 and "exclusão" in r.data["detail"]
+
+
+@pytest.mark.django_db
+def test_queued_audits_waiting_their_turn_are_not_reaped(blocked_audit, settings, monkeypatch):
+    from datetime import timedelta
+
+    from apps.core import jobs
+
+    settings.CELERY_BROKER_URL = ""
+    monkeypatch.setattr(jobs, "PROCESS_STARTED", timezone.now() - timedelta(hours=2))
+    waiting = Audit.objects.create(website=blocked_audit.website)  # fila de um lote grande
+    Audit.objects.filter(pk=waiting.pk).update(criado_em=timezone.now() - timedelta(hours=1))
+    lost = Audit.objects.create(website=blocked_audit.website)  # criada antes do reinício do servidor
+    Audit.objects.filter(pk=lost.pk).update(criado_em=timezone.now() - timedelta(hours=3))
+    assert jobs.reap_stale_jobs() == [lost.pk]
+    waiting.refresh_from_db()
+    assert waiting.status == Audit.Status.QUEUED
+
+    settings.CELERY_BROKER_URL = "redis://x"  # com Celery a fila é persistente: só "executando" vencido
+    queued_old = Audit.objects.create(website=blocked_audit.website)
+    Audit.objects.filter(pk=queued_old.pk).update(criado_em=timezone.now() - timedelta(hours=5))
+    assert jobs.reap_stale_jobs() == []

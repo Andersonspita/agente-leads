@@ -211,3 +211,40 @@ class CnpjEstablishment(models.Model):
     @property
     def nome(self):
         return self.nome_fantasia or self.razao_social or f"CNPJ {self.cnpj}"
+
+
+class DoNotContact(models.Model):
+    """Empresas que pediram exclusão dos dados (LGPD): a prospecção nunca mais as traz de volta.
+
+    Guarda só o mínimo para reconhecer a empresa (CNPJ, domínio, nome normalizado e cidade).
+    """
+
+    cnpj = models.CharField(max_length=14, blank=True, db_index=True)
+    dominio = models.CharField(max_length=255, blank=True, db_index=True)
+    nome_normalizado = models.CharField(max_length=200, blank=True)
+    municipality = models.ForeignKey(Municipality, null=True, blank=True, on_delete=models.SET_NULL)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "exclusão a pedido (não contatar)"
+
+    @classmethod
+    def matcher(cls, municipality_id):
+        """Função que diz se um item vindo de uma fonte (Places, OSM, CNPJ) está na lista."""
+        rows = list(cls.objects.all())
+        cnpjs = {r.cnpj for r in rows if r.cnpj}
+        domains = {r.dominio for r in rows if r.dominio}
+        names = {r.nome_normalizado for r in rows if r.nome_normalizado and r.municipality_id == municipality_id}
+
+        def blocked(item: dict) -> bool:
+            return (
+                (item.get("cnpj") or "") in cnpjs
+                or normalize_domain(item.get("site") or "") in domains
+                or normalize_company_name(item.get("nome") or "") in names
+            )
+
+        return blocked
+
+    @classmethod
+    def is_blocked_domain(cls, domain: str) -> bool:
+        return bool(domain) and cls.objects.filter(dominio=domain).exists()

@@ -14,6 +14,11 @@ from apps.leads.views import CompanyViewSet, LeadNoteViewSet, SearchViewSet
 from apps.reports.views import BriefingViewSet, ReportViewSet, legal_page, public_report, report_preview
 from apps.sitebuilder.views import SiteProjectViewSet, robots_for, serve_site
 
+if settings.REQUIRE_2FA:
+    from django_otp.admin import OTPAdminSite
+
+    admin.site.__class__ = OTPAdminSite  # o /admin também exige o código do autenticador
+
 router = DefaultRouter(trailing_slash=False)
 router.register("categories", CategoryViewSet)
 router.register("rules", RuleViewSet)

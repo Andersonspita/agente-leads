@@ -14,7 +14,7 @@ from apps.core.text import normalize_phone
 
 from .discovery import cnpj, osm, places, websearch
 from .discovery.dedup import Candidate, NameIndex, find_duplicate, is_shared_domain
-from .models import Company, LeadStatus, Search, SearchResult, Website, normalize_domain
+from .models import Company, DoNotContact, LeadStatus, Search, SearchResult, Website, normalize_domain
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +125,7 @@ def run_search(search: Search) -> Search:
     posicao = 0
     email_probes: list[tuple[int, str, list[str]]] = []
     name_index = NameIndex(search.municipality_id)  # deduplicação por nome sem varrer a cidade a cada empresa
+    blocked = DoNotContact.matcher(search.municipality_id)  # LGPD: quem pediu exclusão não volta
 
     # O cache de 30 dias vale só para o Google Places (pago). As fontes gratuitas são sempre consultadas,
     # para refletir, por exemplo, uma base CNPJ recém-importada.
@@ -145,7 +146,7 @@ def run_search(search: Search) -> Search:
             seen_places = set()
             for term in search_terms(search):
                 for item in places.text_search(f"{term}{bairro} em {city}"):
-                    if item["google_place_id"] in seen_places:
+                    if item["google_place_id"] in seen_places or blocked(item):
                         continue
                     seen_places.add(item["google_place_id"])
                     posicao += 1
@@ -164,7 +165,8 @@ def run_search(search: Search) -> Search:
     if osm_tags or search.termo_livre:
         try:
             items = [i for i in osm.search(search.municipality_id, osm_tags, search.termo_livre)
-                     if not search.bairro or search.bairro.lower() in (i.get("bairro") or "").lower()]
+                     if (not search.bairro or search.bairro.lower() in (i.get("bairro") or "").lower())
+                     and not blocked(i)]
             for batch in batched(items):  # um commit por lote: bem mais rápido que um por empresa
                 with transaction.atomic():
                     for item in batch:
@@ -176,7 +178,7 @@ def run_search(search: Search) -> Search:
 
     cnaes = search.category.cnaes if search.category else []
     items = [i for i in cnpj.search(search.municipality_id, cnaes)
-             if not search.bairro or search.bairro.lower() in (i.get("bairro") or "").lower()]
+             if (not search.bairro or search.bairro.lower() in (i.get("bairro") or "").lower()) and not blocked(i)]
     for batch in batched(items):
         with transaction.atomic():
             for item in batch:
@@ -258,6 +260,8 @@ def probe_email_domain(company: Company, domain: str, names: list[str]) -> Websi
     from .discovery.site_finder import belongs_to_company, looks_parked
 
     if company.websites.exists() or Website.objects.filter(dominio=domain).exists():
+        return None
+    if DoNotContact.is_blocked_domain(domain):
         return None
     for candidate in (f"https://{domain}", f"https://www.{domain}", f"http://{domain}"):
         info = check_url(candidate)

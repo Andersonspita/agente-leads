@@ -17,6 +17,7 @@ def _settings(settings, tmp_path):
     settings.AI_BASE_URL = ""
     settings.GOOGLE_PLACES_API_KEY = ""
     settings.OSM_ENABLED = False  # testes não acessam a internet
+    settings.CRAWLER_ALLOW_PRIVATE = True  # os testes servem sites em 127.0.0.1
 
 
 @pytest.fixture

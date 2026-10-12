@@ -214,6 +214,8 @@ CRAWLER_USER_AGENT = os.getenv(
 CRAWLER_MAX_PAGES = int(os.getenv("CRAWLER_MAX_PAGES", "10"))
 CRAWLER_PAGE_TIMEOUT = int(os.getenv("CRAWLER_PAGE_TIMEOUT", "60"))
 CRAWLER_MIN_INTERVAL = float(os.getenv("CRAWLER_MIN_INTERVAL", "1.0"))
+# Só para testes/desenvolvimento: deixa o robô acessar endereços internos (proteção contra SSRF desligada).
+CRAWLER_ALLOW_PRIVATE = env_bool("CRAWLER_ALLOW_PRIVATE", False)
 AUDIT_TIMEOUT = int(os.getenv("AUDIT_TIMEOUT", "300"))
 AUDIT_PARALLELISM = int(os.getenv("AUDIT_PARALLELISM", "5"))
 
