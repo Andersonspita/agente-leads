@@ -274,3 +274,28 @@ def test_crawler_blocks_redirect_to_internal_address(settings):
     with mock.patch("apps.audits.engine.crawler.is_public_url", side_effect=lambda u: "169.254" not in u), \
          mock.patch.object(crawler.session, "get", return_value=redirect), pytest.raises(BlockedURL):
         crawler.get("http://site-publico.com.br/")
+
+
+def test_fetch_errors_are_explained_in_plain_language():
+    import requests
+
+    from apps.audits.engine.crawler import BlockedURL, friendly_error
+
+    dns = requests.ConnectionError("HTTPSConnectionPool(host='x.invalid'): NameResolutionError(...)")
+    assert "domínio não existe" in friendly_error(dns)
+    assert "demorou" in friendly_error(requests.ConnectTimeout("t"))  # ConnectTimeout também é ConnectionError
+    assert "certificado" in friendly_error(requests.exceptions.SSLError("x"))
+    assert "rede interna" in friendly_error(BlockedURL("x"))
+    assert "HTTPSConnectionPool" not in friendly_error(dns)
+
+
+def test_crawler_reads_at_most_max_body_bytes(site, monkeypatch):
+    from apps.audits.engine import crawler as crawler_mod
+
+    monkeypatch.setattr(crawler_mod, "MAX_BODY_BYTES", 100_000)
+    Handler.pages["/enorme"] = "<html><body>" + "x" * 2_000_000 + "</body></html>"
+    try:
+        page = Crawler().fetch_page(site + "/enorme")
+    finally:
+        del Handler.pages["/enorme"]
+    assert page.status == 200 and len(page.html) == 100_000

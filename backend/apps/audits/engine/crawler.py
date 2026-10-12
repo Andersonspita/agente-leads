@@ -54,8 +54,38 @@ def check_public(url: str):
         raise BlockedURL(f"Endereço interno bloqueado: {url}")
 
 
+def friendly_error(exc: Exception) -> str:
+    """Erro de acesso ao site em linguagem de gente (o detalhe técnico fica no log)."""
+    text = str(exc)
+    if isinstance(exc, BlockedURL):
+        return "O endereço aponta para uma rede interna e não pode ser auditado."
+    if isinstance(exc, requests.exceptions.SSLError):
+        return "O certificado de segurança (HTTPS) do site é inválido e a versão sem HTTPS também não abriu."
+    if isinstance(exc, requests.Timeout):
+        return "O site demorou demais para responder."
+    if isinstance(exc, requests.TooManyRedirects):
+        return "O site entra em redirecionamento sem fim e não carrega."
+    if isinstance(exc, requests.ConnectionError):
+        if any(s in text for s in ("NameResolution", "getaddrinfo", "Name or service not known", "nodename")):
+            return "O domínio não existe ou não está apontado para nenhum servidor (DNS não encontrado)."
+        return "O servidor do site recusou a conexão ou está fora do ar."
+    return "O site está fora do ar ou inacessível."
+
+
 MAX_REDIRECTS = 5
 MAX_BODY_BYTES = 3_000_000
+
+
+def _read_limited(resp: requests.Response):
+    """Lê no máximo MAX_BODY_BYTES: uma página (ou arquivo) gigante não ocupa a memória do worker."""
+    chunks, size = [], 0
+    for chunk in resp.iter_content(64 * 1024):
+        chunks.append(chunk)
+        size += len(chunk)
+        if size >= MAX_BODY_BYTES:
+            break
+    resp._content = b"".join(chunks)[:MAX_BODY_BYTES]  # .text e .content passam a usar só o lido
+    resp.close()
 
 
 class DomainRateLimiter:
@@ -139,10 +169,12 @@ class Crawler:
         for _ in range(MAX_REDIRECTS + 1):
             check_public(url)
             rate_limiter.wait(urlparse(url).hostname or "")
-            resp = self.session.get(url, allow_redirects=False, **kwargs)
+            resp = self.session.get(url, allow_redirects=False, stream=True, **kwargs)
             if not resp.is_redirect:
                 resp.history = history
+                _read_limited(resp)
                 return resp
+            resp.close()
             history.append(resp)
             url = urljoin(url, resp.headers["location"])
         raise requests.TooManyRedirects(f"Mais de {MAX_REDIRECTS} redirecionamentos")
@@ -158,7 +190,7 @@ class Crawler:
             final_url=resp.url,
             status=resp.status_code,
             headers={k.lower(): v for k, v in resp.headers.items()},
-            html=html[:3_000_000],
+            html=html,
             elapsed_ms=elapsed,
             redirects=[r.url for r in resp.history],
         )
@@ -267,9 +299,9 @@ def check_url(url: str) -> dict:
         try:
             page = crawler.fetch_page("http://" + url.split("://", 1)[1])
         except requests.RequestException as exc:
-            return {"online": False, "erro": str(exc)[:200]}
+            return {"online": False, "erro": friendly_error(exc)}
     except requests.RequestException as exc:
-        return {"online": False, "erro": str(exc)[:200]}
+        return {"online": False, "erro": friendly_error(exc)}
     return {
         "online": page.status < 500,
         "status_http": page.status,

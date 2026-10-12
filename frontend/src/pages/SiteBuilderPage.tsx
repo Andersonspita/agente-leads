@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Download, ExternalLink, Monitor, Plus, Radar, Smartphone, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, Loader2, Monitor, Plus, Radar, Smartphone, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -25,6 +25,7 @@ export default function SiteBuilderPage() {
     queryFn: () => api.get<Page<SiteProject>>(`sites?empresa=${id}`),
     refetchInterval: (q) => {
       const p = q.state.data?.results[0];
+      if (p?.ia_status === "pendente") return 5000;
       return p?.auditoria_site_novo && ["na_fila", "executando"].includes(p.auditoria_site_novo.status) ? 3000 : false;
     },
   });
@@ -45,7 +46,7 @@ export default function SiteBuilderPage() {
     onSuccess: (p) => {
       invalidate();
       setSelectedId(p.id);
-      toast(p.gerado_por_ia ? "Site gerado com textos da IA. Revise os itens a confirmar." : "Site gerado com textos-base (IA indisponível). Revise os textos.");
+      toast(p.ia_status === "pendente" ? "Site gerado. A IA está escrevendo os textos em segundo plano." : "Site gerado com textos-base (IA não configurada). Revise os textos.");
     },
     onError: (e) => toast(e.message, "error"),
   });
@@ -76,13 +77,16 @@ export default function SiteBuilderPage() {
   const c = company.data;
   const novo = project?.auditoria_site_novo;
   const auditing = !!novo && ["na_fila", "executando"].includes(novo.status);
+  const writing = project?.ia_status === "pendente"; // edição travada: a IA vai substituir os textos
+  const origem = project?.gerado_por_ia ? `textos por IA (${project.modelo_ia})`
+    : writing ? "IA escrevendo os textos…" : project?.ia_status === "falhou" ? "textos-base (a IA não respondeu)" : "textos-base, sem IA";
 
   return (
     <div className="flex h-screen flex-col">
       <PageHeader
         back={<Link to={`/leads/${id}`}>← {c?.nome}</Link>}
         title="Site novo"
-        description={project ? `Versão de ${fmtDateTime(project.atualizado_em)} · ${project.gerado_por_ia ? `textos por IA (${project.modelo_ia})` : "textos-base, sem IA"}` : "Gera um site completo que resolve as falhas do diagnóstico"}
+        description={project ? `Versão de ${fmtDateTime(project.atualizado_em)} · ${origem}` : "Gera um site completo que resolve as falhas do diagnóstico"}
         actions={
           project && (
             <>
@@ -103,7 +107,7 @@ export default function SiteBuilderPage() {
                   <Download className="size-4" aria-hidden /> Baixar .zip
                 </Button>
               </a>
-              <Button onClick={() => save.mutate()} disabled={!dirty} loading={save.isPending}>
+              <Button onClick={() => save.mutate()} disabled={!dirty || writing} loading={save.isPending}>
                 Salvar
               </Button>
             </>
@@ -145,6 +149,12 @@ export default function SiteBuilderPage() {
                 </Card>
               )}
 
+              {writing && (
+                <p role="status" className="flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted">
+                  <Loader2 className="size-4 animate-spin" aria-hidden /> A IA está escrevendo os textos (pode levar alguns minutos). A edição libera quando terminar.
+                </p>
+              )}
+
               <Card>
                 <div className="px-4 pt-2">
                   <Tabs
@@ -158,7 +168,7 @@ export default function SiteBuilderPage() {
                     ]}
                   />
                 </div>
-                <div className="space-y-3 p-4">
+                <fieldset disabled={writing} className="min-w-0 space-y-3 p-4 disabled:opacity-60">
                   {tab === "textos" && (
                     <>
                       <Field label="Título principal (H1)" htmlFor="s-h"><Input id="s-h" value={draft.headline} onChange={(e) => set("headline", e.target.value)} /></Field>
@@ -213,7 +223,7 @@ export default function SiteBuilderPage() {
                       <Button variant="outline" size="sm" onClick={() => set("faq", [...draft.faq, { pergunta: "", resposta: "" }])}><Plus className="size-3.5" /> Pergunta</Button>
                     </div>
                   )}
-                </div>
+                </fieldset>
               </Card>
 
               {draft.problemas_resolvidos.length > 0 && (
@@ -239,7 +249,7 @@ export default function SiteBuilderPage() {
               </div>
               <div className="flex min-h-0 flex-1 justify-center overflow-auto p-4">
                 <iframe
-                  key={`${project.id}-${previewKey}`}
+                  key={`${project.id}-${previewKey}-${project.atualizado_em}`}
                   title="Prévia do site novo"
                   src={`/s/${project.token}/`}
                   className={cn("h-full rounded-lg border border-border bg-white shadow-sm", device === "mobile" ? "w-[390px] max-w-full" : "w-full")}

@@ -4,12 +4,15 @@ from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from apps.audits.engine import ai
 from apps.audits.engine.scoring import score_band
 from apps.audits.models import Audit
 from apps.core.activity import log_activity
+from apps.core.jobs import enqueue
 from apps.leads.models import Company, Website
 
 from .content import build_content
+from .tasks import write_site_copy
 from .models import SiteProject
 from .render import build_zip, render_files
 
@@ -36,9 +39,9 @@ class SiteProjectSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SiteProject
-        fields = ["id", "company", "empresa", "token", "conteudo", "gerado_por_ia", "modelo_ia", "preview_url",
+        fields = ["id", "company", "empresa", "token", "conteudo", "gerado_por_ia", "modelo_ia", "ia_status", "preview_url",
                   "auditoria_original", "auditoria_site_novo", "criado_em", "atualizado_em"]
-        read_only_fields = ["token", "gerado_por_ia", "modelo_ia", "criado_em", "atualizado_em"]
+        read_only_fields = ["token", "gerado_por_ia", "modelo_ia", "ia_status", "criado_em", "atualizado_em"]
         extra_kwargs = {"conteudo": {"required": False}}
 
     def get_auditoria_original(self, obj):
@@ -78,10 +81,12 @@ class SiteProjectViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.
             return Response({"detail": "Empresa não encontrada."}, status=status.HTTP_400_BAD_REQUEST)
         audit = Audit.objects.filter(website__company=company, status=Audit.Status.DONE).exclude(
             website__origem="gerado").order_by("-concluido_em").first()
-        content, by_ai, model = build_content(company, audit)
-        project = SiteProject.objects.create(company=company, audit_origem=audit, conteudo=content,
-                                             gerado_por_ia=by_ai, modelo_ia=model, criado_por=request.user)
-        log_activity(request.user, "site_gerado", project, ia=by_ai)
+        project = SiteProject.objects.create(company=company, audit_origem=audit,
+                                             conteudo=build_content(company, audit), criado_por=request.user,
+                                             ia_status="pendente" if ai.is_configured() else "")
+        if project.ia_status:
+            enqueue(write_site_copy, project.pk)
+        log_activity(request.user, "site_gerado", project, ia=bool(project.ia_status))
         return Response(SiteProjectSerializer(project).data, status=status.HTTP_201_CREATED)
 
     def perform_update(self, serializer):

@@ -451,6 +451,7 @@ export interface SiteProject {
   conteudo: SiteContent;
   gerado_por_ia: boolean;
   modelo_ia: string;
+  ia_status: "" | "pendente" | "ok" | "falhou";
   preview_url: string;
   auditoria_original: SiteAuditSummary | null;
   auditoria_site_novo: SiteAuditSummary | null;

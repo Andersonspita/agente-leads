@@ -82,6 +82,12 @@ def reap_stale_jobs():
             Q(iniciado_em__lt=PROCESS_STARTED) | Q(iniciado_em__isnull=True, audit__concluido_em__lt=PROCESS_STARTED))
     AuditStep.objects.filter(ai_q, etapa="ia", audit__status=Audit.Status.DONE).update(
         status=AuditStep.Status.FAILED, erro="Análise por IA interrompida (servidor reiniciado). Use “Rodar IA”.")
+    from apps.sitebuilder.models import SiteProject
+
+    site_q = Q(ia_status="pendente", atualizado_em__lt=now - timedelta(seconds=settings.AI_TIMEOUT * 10))
+    if not settings.CELERY_BROKER_URL:
+        site_q |= Q(ia_status="pendente", atualizado_em__lt=PROCESS_STARTED)
+    SiteProject.objects.filter(site_q).update(ia_status="falhou")
     search_q = Q(status=Search.Status.RUNNING, criado_em__lt=now - timedelta(minutes=30))
     if not settings.CELERY_BROKER_URL:
         search_q |= Q(status__in=[Search.Status.QUEUED, Search.Status.RUNNING], criado_em__lt=PROCESS_STARTED)

@@ -1,14 +1,11 @@
 """Monta o conteúdo do site novo a partir dos dados do lead, do diagnóstico e do checklist da categoria.
 
-Os textos vêm da IA quando ela está configurada; sem IA (ou se ela falhar), usamos textos-base
-neutros. Nada é inventado: sem número de registro profissional, prêmios, anos de experiência,
+O site sai na hora com textos-base neutros; com a IA configurada, um job reescreve os textos em
+segundo plano (sem tocar no que o analista já editou). Nada é inventado: sem número de registro profissional, prêmios, anos de experiência,
 preços ou depoimentos fictícios. O que depende do cliente vai para a lista "a_confirmar".
 """
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date
-
-from django.db import connection
 
 from apps.audits.engine import ai
 from apps.audits.models import Audit, Finding
@@ -17,9 +14,6 @@ from apps.leads.models import CnpjEstablishment, Company
 
 logger = logging.getLogger(__name__)
 
-# A geração roda dentro da requisição: a IA tem esse tempo, depois o site sai com os textos-base
-# (o gunicorn derruba a requisição em 120 s e a IA, com novas tentativas, pode passar disso).
-AI_WAIT_SECONDS = 60
 
 # Paleta, ícone e tipo schema.org por categoria (pela palavra-chave no nome da categoria).
 THEMES = [
@@ -131,43 +125,54 @@ def _validate_copy(data: dict) -> dict:
     return data
 
 
-def _ask_ai(prompt: str):
-    try:
-        return ai.complete_json(prompt, SITE_COPY_SCHEMA, _validate_copy)
-    finally:
-        connection.close()  # conexão própria desta thread (registro de custo da IA)
+NO_AI_NOTE = "Textos dos serviços (gerados sem IA, revise todos)"
 
 
-def build_content(company: Company, audit: Audit | None) -> tuple[dict, bool, str]:
-    """Devolve (conteudo, gerado_por_ia, modelo)."""
-    cidade = company.municipality.nome if company.municipality_id else ""
-    uf = company.municipality.uf if company.municipality_id else ""
-    categoria = company.category.nome if company.category else ""
-    est = CnpjEstablishment.objects.filter(cnpj=company.cnpj).first() if company.cnpj else None
-    theme = theme_for(company)
+def _facts(company: Company, audit: Audit | None) -> dict:
     checklist = list(company.category.checklist.values_list("item", flat=True)) if company.category else []
     problemas = []
     if audit:
         problemas = list(audit.findings.filter(status_revisao=Finding.Review.CONFIRMED)
                          .values_list("titulo", flat=True)[:15])
+    return {
+        "cidade": company.municipality.nome if company.municipality_id else "",
+        "uf": company.municipality.uf if company.municipality_id else "",
+        "categoria": company.category.nome if company.category else "",
+        "checklist": checklist,
+        "problemas": problemas,
+    }
 
-    copy, by_ai, model = None, False, ""
-    if ai.is_configured():
-        prompt = COPY_PROMPT.format(
-            empresa=company.nome, categoria=categoria or "negócio local", cidade=cidade or "sua cidade",
-            problemas="\n".join(f"- {p}" for p in problemas) or "- (sem diagnóstico: empresa sem site)",
-            checklist="\n".join(f"- {c}" for c in checklist) or "- (nenhum)",
-        )
-        pool = ThreadPoolExecutor(max_workers=1)
-        try:
-            copy, model = pool.submit(_ask_ai, prompt).result(timeout=AI_WAIT_SECONDS)
-            by_ai = True
-        except Exception as exc:  # IA fora do ar, limite gratuito etc.: segue com os textos-base
-            logger.warning("IA indisponível para os textos do site: %r", exc)
-        finally:
-            pool.shutdown(wait=False)  # não segura a requisição esperando a IA terminar
-    if copy is None:
-        copy = default_copy(company, cidade, categoria)
+
+def ai_copy(company: Company, audit: Audit | None) -> tuple[dict, str]:
+    """Textos do site escritos pela IA (roda em job; pode demorar). Devolve (textos, modelo)."""
+    f = _facts(company, audit)
+    prompt = COPY_PROMPT.format(
+        empresa=company.nome, categoria=f["categoria"] or "negócio local", cidade=f["cidade"] or "sua cidade",
+        problemas="\n".join(f"- {p}" for p in f["problemas"]) or "- (sem diagnóstico: empresa sem site)",
+        checklist="\n".join(f"- {c}" for c in f["checklist"]) or "- (nenhum)",
+    )
+    return ai.complete_json(prompt, SITE_COPY_SCHEMA, _validate_copy)
+
+
+def merge_ai_copy(content: dict, company: Company, copy: dict) -> dict:
+    """Aplica os textos da IA só nos campos que o analista ainda não editou (iguais aos textos-base)."""
+    f = _facts(company, None)
+    base = default_copy(company, f["cidade"], f["categoria"])
+    merged = dict(content)
+    for key in SITE_COPY_SCHEMA["required"]:
+        if merged.get(key) == base.get(key):
+            merged[key] = copy[key]
+    merged["a_confirmar"] = [i for i in merged.get("a_confirmar", []) if i != NO_AI_NOTE]
+    return merged
+
+
+def build_content(company: Company, audit: Audit | None) -> dict:
+    """Conteúdo completo com os textos-base (instantâneo); a IA reescreve os textos depois, em job."""
+    f = _facts(company, audit)
+    cidade, uf, categoria, checklist, problemas = f["cidade"], f["uf"], f["categoria"], f["checklist"], f["problemas"]
+    est = CnpjEstablishment.objects.filter(cnpj=company.cnpj).first() if company.cnpj else None
+    theme = theme_for(company)
+    copy = default_copy(company, cidade, categoria)
 
     whatsapp = company.whatsapp or (company.telefone if is_mobile(company.telefone) else "")
     a_confirmar = ["Horário de atendimento", "Fotos reais do espaço e da equipe (as imagens atuais são ilustrações)"]
@@ -177,8 +182,7 @@ def build_content(company: Company, audit: Audit | None) -> tuple[dict, bool, st
         a_confirmar.append("Links do Instagram/Facebook")
     if any("agend" in c.lower() for c in checklist):
         a_confirmar.append("Link de agendamento online (hoje o agendamento é pelo WhatsApp)")
-    if not by_ai:
-        a_confirmar.append("Textos dos serviços (gerados sem IA, revise todos)")
+    a_confirmar.append(NO_AI_NOTE)
     a_confirmar.append("Registro profissional do responsável técnico, se exigido pelo conselho da categoria")
 
     content = {
@@ -209,4 +213,4 @@ def build_content(company: Company, audit: Audit | None) -> tuple[dict, bool, st
         "problemas_resolvidos": problemas,
         "a_confirmar": a_confirmar,
     }
-    return content, by_ai, model
+    return content

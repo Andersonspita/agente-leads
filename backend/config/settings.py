@@ -176,6 +176,7 @@ CELERY_TASK_ROUTES = {
     "apps.leads.tasks.*": {"queue": "discovery"},
     "apps.audits.tasks.run_audit": {"queue": "audit"},
     "apps.audits.tasks.ai_analysis": {"queue": "ai"},
+    "apps.sitebuilder.tasks.write_site_copy": {"queue": "ai"},
     "apps.reports.tasks.render_report_pdf": {"queue": "reports"},
     "apps.core.tasks.*": {"queue": "maintenance"},
 }

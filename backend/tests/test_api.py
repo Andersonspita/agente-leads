@@ -95,8 +95,11 @@ def test_company_filters_and_csv_export(api, city, category):
     names = lambda r: {c["nome"] for c in r.data["results"]}  # noqa: E731
     assert names(api.get("/api/companies?site=sem_site")) == {"Sem Site"}
     assert names(api.get("/api/companies?site=tem_site")) == {"Com Site"}
+    Company.objects.create(nome='=HYPERLINK("http://x","clique")', municipality=city, category=category)
     r = api.get("/api/companies/export")
-    assert r.status_code == 200 and "Com Site" in r.content.decode("utf-8")
+    body = r.content.decode("utf-8")
+    assert r.status_code == 200 and "Com Site" in body
+    assert "'=HYPERLINK" in body and '"=HYPERLINK' not in body  # o Excel não executa como fórmula
 
 
 @pytest.mark.django_db

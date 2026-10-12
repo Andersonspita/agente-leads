@@ -23,7 +23,7 @@ from apps.leads.models import LeadStatus
 from . import ai, rules, scoring, security, tech
 from .browser import DESKTOP, MAX_FULL_HEIGHT, MOBILE, browser_available, run_browser
 from .context import AuditContext
-from .crawler import Crawler
+from .crawler import Crawler, friendly_error
 from .lighthouse import lighthouse_command, run_lighthouse
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class AuditRunner:
             audit.status = Audit.Status.FAILED
             audit.erro = str(exc)
             AuditStep.objects.filter(audit=audit, status=AuditStep.Status.PENDING).update(
-                status=AuditStep.Status.SKIPPED, erro="Auditoria interrompida"
+                status=AuditStep.Status.SKIPPED, erro="Não executada: a auditoria parou antes (veja o motivo acima)"
             )
         finally:
             pool.shutdown(wait=False, cancel_futures=True)
@@ -171,7 +171,8 @@ class AuditRunner:
                 self.website.online = False
                 self.website.ultimo_check = timezone.now()
                 self.website.save(update_fields=["online", "ultimo_check"])
-                raise AuditAborted(f"Site fora do ar ou inacessível: {str(exc)[:200]}") from exc
+                logger.info("Rastreio falhou em %s: %s", self.ctx.url, exc)
+                raise AuditAborted(friendly_error(exc)) from exc
             self.ctx.crawl = crawl
             home = crawl.home
             self.website.status_http = home.status

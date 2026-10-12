@@ -57,6 +57,13 @@ def filter_companies(qs, params):
     return qs.distinct()
 
 
+def csv_safe(value):
+    """Texto que o Excel leria como fórmula (=, +, -, @) vira texto literal (injeção de CSV)."""
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + value
+    return value
+
+
 def export_csv(companies, filename):
     """Exportação de leads em CSV (RF13), com BOM para abrir direto no Excel."""
     response = HttpResponse(content_type="text/csv; charset=utf-8")
@@ -67,11 +74,11 @@ def export_csv(companies, filename):
                      "Situação do site", "Nota do site", "Nota Google", "Avaliações", "Status do lead"])
     ser = CompanyListSerializer(companies, many=True)
     for row in ser.data:
-        writer.writerow([
+        writer.writerow([csv_safe(v) for v in [
             row["nome"], row["cnpj"], row["categoria"], row["municipio"], row["bairro"], row["telefone"],
             row["whatsapp"], (row["site"] or {}).get("url", ""), row["situacao_site"], row["nota_site"] or "",
             row["nota_google"] or "", row["n_avaliacoes"] or "", row["status_lead_nome"],
-        ])
+        ]])
     return response
 
 

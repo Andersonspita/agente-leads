@@ -21,6 +21,8 @@ class SiteProject(models.Model):
     conteudo = models.JSONField(default=dict)
     gerado_por_ia = models.BooleanField(default=False)
     modelo_ia = models.CharField(max_length=60, blank=True)
+    ia_status = models.CharField(max_length=10, blank=True,
+                                 help_text="Textos pela IA em segundo plano: pendente, ok ou falhou")
     website = models.OneToOneField(Website, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
                                    help_text="Registro usado para auditar o site gerado")
     criado_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)

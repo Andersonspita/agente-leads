@@ -25,8 +25,7 @@ def lead(city, category):
 
 @pytest.mark.django_db
 def test_content_without_ai_is_neutral_and_lists_what_to_confirm(lead):
-    content, by_ai, _ = build_content(lead, None)
-    assert not by_ai
+    content = build_content(lead, None)
     assert content["whatsapp"] == "77991234567"  # celular cadastrado vira candidato a WhatsApp
     assert content["schema_tipo"] == "Dentist"
     assert "Vitória da Conquista" in content["titulo_seo"]
@@ -38,33 +37,41 @@ def test_content_without_ai_is_neutral_and_lists_what_to_confirm(lead):
         assert invented not in text
 
 
+AI_COPY = {"titulo_seo": "Dentista em Vitória da Conquista | Odonto Vida", "descricao_seo": "d" * 130,
+           "headline": "Seu sorriso bem cuidado", "subheadline": "Atendimento em Vitória da Conquista",
+           "sobre": "A.\n\nB.", "servicos": [{"titulo": "Limpeza", "descricao": "x"}],
+           "diferenciais": [{"titulo": "Perto", "descricao": "y"}], "faq": [{"pergunta": "P?", "resposta": "R."}]}
+
+
 @pytest.mark.django_db
-def test_content_uses_ai_copy_when_available(settings, lead):
-    settings.GEMINI_API_KEY = "x"
-    copy = {"titulo_seo": "Dentista em Vitória da Conquista | Odonto Vida", "descricao_seo": "d" * 130,
-            "headline": "Seu sorriso bem cuidado", "subheadline": "Atendimento em Vitória da Conquista",
-            "sobre": "A.\n\nB.", "servicos": [{"titulo": "Limpeza", "descricao": "x"}],
-            "diferenciais": [{"titulo": "Perto", "descricao": "y"}], "faq": [{"pergunta": "P?", "resposta": "R."}]}
-    with mock.patch("apps.audits.engine.ai.complete_json", return_value=(copy, "gemini-x")) as call:
-        content, by_ai, model = build_content(lead, None)
-    assert by_ai and model == "gemini-x" and content["headline"] == "Seu sorriso bem cuidado"
+def test_ai_job_rewrites_copy_but_keeps_what_the_analyst_edited(lead):
+    from apps.sitebuilder.content import NO_AI_NOTE
+    from apps.sitebuilder.tasks import write_site_copy
+
+    project = SiteProject.objects.create(company=lead, conteudo=build_content(lead, None), ia_status="pendente")
+    project.conteudo = {**project.conteudo, "sobre": "Texto do analista"}  # editado enquanto a IA escrevia
+    project.save()
+    with mock.patch("apps.audits.engine.ai.complete_json", return_value=(AI_COPY, "gemini-x")) as call:
+        write_site_copy(project.pk)
+    project.refresh_from_db()
+    assert project.ia_status == "ok" and project.gerado_por_ia and project.modelo_ia == "gemini-x"
+    assert project.conteudo["headline"] == "Seu sorriso bem cuidado"
+    assert project.conteudo["sobre"] == "Texto do analista"
+    assert NO_AI_NOTE not in project.conteudo["a_confirmar"]
     prompt = call.call_args.args[0]
     assert "NÃO invente fatos" in prompt and "Vitória da Conquista" in prompt
 
 
 @pytest.mark.django_db
-def test_slow_ai_falls_back_to_base_copy(settings, lead, monkeypatch):
-    import threading
+def test_ai_job_failure_keeps_base_copy(lead):
+    from apps.sitebuilder.tasks import write_site_copy
 
-    from apps.sitebuilder import content as content_mod
-
-    settings.GEMINI_API_KEY = "x"
-    monkeypatch.setattr(content_mod, "AI_WAIT_SECONDS", 0.2)
-    release = threading.Event()
-    with mock.patch("apps.audits.engine.ai.complete_json", side_effect=lambda *a: release.wait(5)):
-        content, by_ai, _ = build_content(lead, None)
-    release.set()
-    assert not by_ai and content["headline"]  # não espera a IA lenta: sai com os textos-base
+    content = build_content(lead, None)
+    project = SiteProject.objects.create(company=lead, conteudo=content, ia_status="pendente")
+    with mock.patch("apps.audits.engine.ai.complete_json", side_effect=TimeoutError("lenta")):
+        write_site_copy(project.pk)
+    project.refresh_from_db()
+    assert project.ia_status == "falhou" and project.conteudo == content and not project.gerado_por_ia
 
 
 def _ctx_from(files, base="http://127.0.0.1:8000/s/tok/"):
@@ -83,7 +90,7 @@ def _ctx_from(files, base="http://127.0.0.1:8000/s/tok/"):
 
 @pytest.mark.django_db
 def test_generated_site_passes_content_seo_conversion_and_lgpd_rules(lead):
-    content, _, _ = build_content(lead, None)
+    content = build_content(lead, None)
     files = render_files(content, "http://127.0.0.1:8000/s/tok/")
     assert {"index.html", "politica-de-privacidade.html", "robots.txt", "sitemap.xml", "favicon.svg",
             "img/destaque.svg", "img/sobre.svg", "img/contato.svg"} <= set(files)
@@ -98,7 +105,7 @@ def test_generated_site_passes_content_seo_conversion_and_lgpd_rules(lead):
 
 @pytest.mark.django_db
 def test_zip_contains_site_and_readme(lead):
-    content, _, _ = build_content(lead, None)
+    content = build_content(lead, None)
     zf = zipfile.ZipFile(io.BytesIO(build_zip(content, "http://x/s/t/")))
     assert "index.html" in zf.namelist() and "LEIA-ME.txt" in zf.namelist()
     assert "Itens a confirmar" in zf.read("LEIA-ME.txt").decode()
@@ -137,3 +144,14 @@ def test_site_api_preview_and_robots(api, lead, settings):
     site = SiteProject.objects.get(pk=pid).website
     assert site.origem == "gerado" and site.dominio == f"gerado:s/{token}" and not site.principal
     assert Website.objects.filter(company=lead, origem="gerado").count() == 1
+
+
+@pytest.mark.django_db
+def test_site_creation_returns_at_once_and_queues_the_ai(api, lead, settings):
+    settings.GEMINI_API_KEY = "x"
+    with mock.patch("apps.sitebuilder.views.enqueue") as enqueue, \
+            mock.patch("apps.audits.engine.ai.complete_json") as call:
+        r = api.post("/api/sites", {"company": lead.pk}, format="json")
+    assert r.status_code == 201 and r.data["ia_status"] == "pendente"
+    assert not call.called  # a requisição não espera a IA
+    assert enqueue.call_args.args[1] == r.data["id"]
