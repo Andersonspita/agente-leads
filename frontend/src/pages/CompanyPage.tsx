@@ -8,7 +8,7 @@ import type { AuditListItem, Briefing, CompanyDetail, LeadStatus, Page, Report }
 import { PageBody, PageHeader } from "@/components/Layout";
 import { ScoreChip, SiteStateIcon, StatusPill } from "@/components/domain";
 import { useToast } from "@/components/toast";
-import { Badge, Button, Card, CardHeader, Dialog, ErrorState, Input, Loading, Textarea } from "@/components/ui";
+import { Badge, Button, Card, CardHeader, Dialog, ErrorState, Input, Loading, Textarea, buttonClass } from "@/components/ui";
 import { SITE_ORIGIN } from "@/lib/labels";
 import { fmtDate, fmtDateTime, fmtPhone } from "@/lib/utils";
 
@@ -88,16 +88,12 @@ export default function CompanyPage() {
                 <Radar className="size-4" aria-hidden /> {main.ultima_auditoria ? "Reauditar" : "Auditar site"}
               </Button>
             )}
-            <Link to={`/leads/${c.id}/site`}>
-              <Button variant="outline">
-                <Wand2 className="size-4" aria-hidden /> Site novo
-              </Button>
+            <Link to={`/leads/${c.id}/site`} className={buttonClass({ variant: "outline" })}>
+              <Wand2 className="size-4" aria-hidden /> Site novo
             </Link>
             {(c.status_lead === "fechado" || c.status_lead === "entregue" || c.status_lead === "sem_site") && (
-              <Link to={`/leads/${c.id}/briefing`}>
-                <Button variant={main?.auditavel ? "outline" : "primary"}>
-                  <FileText className="size-4" aria-hidden /> Briefing do site novo
-                </Button>
+              <Link to={`/leads/${c.id}/briefing`} className={buttonClass({ variant: main?.auditavel ? "outline" : "primary" })}>
+                <FileText className="size-4" aria-hidden /> Briefing do site novo
               </Link>
             )}
           </>

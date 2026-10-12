@@ -8,7 +8,8 @@ import type { CompanyDetail, Page, SiteAuditSummary, SiteContent, SiteProject } 
 import { PageHeader } from "@/components/Layout";
 import { ScoreGauge } from "@/components/domain";
 import { useToast } from "@/components/toast";
-import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Field, Input, Loading, Select, Tabs, Textarea } from "@/components/ui";
+import { useUnsavedChanges } from "@/lib/useUnsavedChanges";
+import { Badge, Button, Card, CardHeader, Checkbox, EmptyState, Field, Input, Loading, Select, Tabs, Textarea, buttonClass } from "@/components/ui";
 import { DIMENSIONS, DIMENSION_ORDER } from "@/lib/labels";
 import { bandText, cn, fmtDateTime } from "@/lib/utils";
 
@@ -69,6 +70,7 @@ export default function SiteBuilderPage() {
   });
 
   const dirty = !!project && !!draft && JSON.stringify(draft) !== JSON.stringify(project.conteudo);
+  useUnsavedChanges(dirty);
   const set = <K extends keyof SiteContent>(key: K, value: SiteContent[K]) => setDraft((d) => (d ? { ...d, [key]: value } : d));
   const setItem = (key: ListKey, i: number, field: "titulo" | "descricao", value: string) =>
     setDraft((d) => (d ? { ...d, [key]: d[key].map((it, j) => (j === i ? { ...it, [field]: value } : it)) } : d));
@@ -102,10 +104,9 @@ export default function SiteBuilderPage() {
               <Button variant="outline" onClick={() => generate.mutate()} loading={generate.isPending} title="Gera uma nova versão do zero">
                 <Wand2 className="size-4" aria-hidden /> Gerar de novo
               </Button>
-              <a href={`/api/sites/${project.id}/download`}>
-                <Button variant="outline" disabled={dirty} title={dirty ? "Salve antes de baixar" : undefined}>
-                  <Download className="size-4" aria-hidden /> Baixar .zip
-                </Button>
+              <a href={`/api/sites/${project.id}/download`} className={buttonClass({ variant: "outline" })} aria-disabled={dirty}
+                onClick={(e) => dirty && e.preventDefault()} title={dirty ? "Salve antes de baixar" : undefined}>
+                <Download className="size-4" aria-hidden /> Baixar .zip
               </a>
               <Button onClick={() => save.mutate()} disabled={!dirty || writing} loading={save.isPending}>
                 Salvar
@@ -244,7 +245,7 @@ export default function SiteBuilderPage() {
                 <div className="flex items-center gap-1">
                   <Button size="sm" variant={device === "desktop" ? "secondary" : "ghost"} onClick={() => setDevice("desktop")} aria-pressed={device === "desktop"}><Monitor className="size-3.5" /> Computador</Button>
                   <Button size="sm" variant={device === "mobile" ? "secondary" : "ghost"} onClick={() => setDevice("mobile")} aria-pressed={device === "mobile"}><Smartphone className="size-3.5" /> Celular</Button>
-                  <a href={project.preview_url} target="_blank" rel="noreferrer"><Button size="sm" variant="ghost"><ExternalLink className="size-3.5" /> Abrir</Button></a>
+                  <a href={project.preview_url} target="_blank" rel="noreferrer" className={buttonClass({ variant: "ghost", size: "sm" })}><ExternalLink className="size-3.5" /> Abrir</a>
                 </div>
               </div>
               <div className="flex min-h-0 flex-1 justify-center overflow-auto p-4">

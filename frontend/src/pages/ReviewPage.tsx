@@ -8,7 +8,8 @@ import type { AuditDetail, Dimensao, Finding, Severidade } from "@/api/types";
 import { PageHeader } from "@/components/Layout";
 import { FindingItem, OriginBadge, ReviewBadge, ScreenshotAnnotated, SeverityBadge } from "@/components/domain";
 import { useToast } from "@/components/toast";
-import { Button, Card, Dialog, ErrorState, Field, Input, Loading, Select, Textarea } from "@/components/ui";
+import { useUnsavedChanges } from "@/lib/useUnsavedChanges";
+import { Button, Card, Dialog, ErrorState, Field, Input, Loading, Select, Textarea, buttonClass } from "@/components/ui";
 import { DIMENSIONS, SEVERITIES } from "@/lib/labels";
 import { useAudit } from "./AuditPage";
 
@@ -24,6 +25,7 @@ export default function ReviewPage() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [adding, setAdding] = useState(false);
+  useUnsavedChanges(editing); // achado aberto em edição
 
   const findings = useMemo(
     () =>
@@ -104,10 +106,9 @@ export default function ReviewPage() {
             <Button variant="outline" onClick={() => setAdding(true)}>
               <Plus className="size-4" aria-hidden /> Achado manual
             </Button>
-            <Link to={`/auditorias/${a.id}/relatorio`} aria-disabled={pending > 0} onClick={(e) => pending > 0 && e.preventDefault()}>
-              <Button disabled={pending > 0} title={pending ? "Revise os pendentes antes de gerar o relatório" : undefined}>
-                <FileBarChart className="size-4" aria-hidden /> Preparar relatório
-              </Button>
+            <Link to={`/auditorias/${a.id}/relatorio`} className={buttonClass()} aria-disabled={pending > 0} onClick={(e) => pending > 0 && e.preventDefault()}
+              title={pending ? "Revise os pendentes antes de gerar o relatório" : undefined}>
+              <FileBarChart className="size-4" aria-hidden /> Preparar relatório
             </Link>
           </>
         }

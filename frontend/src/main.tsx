@@ -3,7 +3,7 @@ import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, RouterProvider, createBrowserRouter, createRoutesFromElements, useLocation } from "react-router-dom";
 
 import { AuthProvider, useAuth } from "@/auth";
 import { Layout } from "@/components/Layout";
@@ -38,40 +38,45 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// Data router: necessário para o useBlocker (aviso de alterações não salvas ao trocar de tela)
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <RequireAuth>
+            <Layout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<DashboardPage />} />
+        <Route path="buscas" element={<SearchesPage />} />
+        <Route path="buscas/nova" element={<NewSearchPage />} />
+        <Route path="buscas/:id" element={<SearchResultsPage />} />
+        <Route path="leads" element={<LeadsPage />} />
+        <Route path="leads/:id" element={<CompanyPage />} />
+        <Route path="leads/:id/briefing" element={<BriefingPage />} />
+        <Route path="leads/:id/site" element={<SiteBuilderPage />} />
+        <Route path="auditorias" element={<AuditsPage />} />
+        <Route path="auditorias/:id" element={<AuditPage />} />
+        <Route path="auditorias/:id/revisao" element={<ReviewPage />} />
+        <Route path="auditorias/:id/comparativo" element={<ComparePage />} />
+        <Route path="auditorias/:id/relatorio" element={<ReportEditorPage />} />
+        <Route path="relatorios" element={<ReportsPage />} />
+        <Route path="configuracoes" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </>,
+  ),
+);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route
-                element={
-                  <RequireAuth>
-                    <Layout />
-                  </RequireAuth>
-                }
-              >
-                <Route index element={<DashboardPage />} />
-                <Route path="buscas" element={<SearchesPage />} />
-                <Route path="buscas/nova" element={<NewSearchPage />} />
-                <Route path="buscas/:id" element={<SearchResultsPage />} />
-                <Route path="leads" element={<LeadsPage />} />
-                <Route path="leads/:id" element={<CompanyPage />} />
-                <Route path="leads/:id/briefing" element={<BriefingPage />} />
-                <Route path="leads/:id/site" element={<SiteBuilderPage />} />
-                <Route path="auditorias" element={<AuditsPage />} />
-                <Route path="auditorias/:id" element={<AuditPage />} />
-                <Route path="auditorias/:id/revisao" element={<ReviewPage />} />
-                <Route path="auditorias/:id/comparativo" element={<ComparePage />} />
-                <Route path="auditorias/:id/relatorio" element={<ReportEditorPage />} />
-                <Route path="relatorios" element={<ReportsPage />} />
-                <Route path="configuracoes" element={<SettingsPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </AuthProvider>
       </ToastProvider>
     </QueryClientProvider>

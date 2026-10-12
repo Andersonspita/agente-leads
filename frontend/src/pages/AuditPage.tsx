@@ -8,7 +8,7 @@ import type { AuditDetail, Dimensao, Finding } from "@/api/types";
 import { PageBody, PageHeader } from "@/components/Layout";
 import { DimensionCard, FindingItem, JobProgress, ScoreGauge, ScreenshotAnnotated } from "@/components/domain";
 import { useToast } from "@/components/toast";
-import { Badge, Button, Card, CardHeader, ErrorState, Loading, Tabs } from "@/components/ui";
+import { Badge, Button, Card, CardHeader, ErrorState, Loading, Tabs, buttonClass } from "@/components/ui";
 import { SEVERITIES } from "@/lib/labels";
 import { fmtBytes, fmtDateTime, fmtSeconds } from "@/lib/utils";
 
@@ -68,16 +68,12 @@ export default function AuditPage() {
       <RefreshCw className="size-4" aria-hidden /> Tentar de novo
     </Button>
   ) : pending > 0 ? (
-    <Link to={`/auditorias/${a.id}/revisao`}>
-      <Button>
-        <ClipboardCheck className="size-4" aria-hidden /> Revisar {pending} achado(s)
-      </Button>
+    <Link to={`/auditorias/${a.id}/revisao`} className={buttonClass()}>
+      <ClipboardCheck className="size-4" aria-hidden /> Revisar {pending} achado(s)
     </Link>
   ) : (
-    <Link to={`/auditorias/${a.id}/relatorio`}>
-      <Button>
-        <FileBarChart className="size-4" aria-hidden /> {a.reports.length ? "Editar relatório" : "Gerar relatório"}
-      </Button>
+    <Link to={`/auditorias/${a.id}/relatorio`} className={buttonClass()}>
+      <FileBarChart className="size-4" aria-hidden /> {a.reports.length ? "Editar relatório" : "Gerar relatório"}
     </Link>
   );
 
@@ -91,10 +87,8 @@ export default function AuditPage() {
           <>
             {!running && a.status === "concluida" && (
               <>
-                <Link to={`/auditorias/${a.id}/comparativo`}>
-                  <Button variant="outline">
-                    <BarChart3 className="size-4" aria-hidden /> Comparativo
-                  </Button>
+                <Link to={`/auditorias/${a.id}/comparativo`} className={buttonClass({ variant: "outline" })}>
+                  <BarChart3 className="size-4" aria-hidden /> Comparativo
                 </Link>
                 <Button variant="outline" onClick={() => rerun.mutate()} loading={rerun.isPending} title="Nova auditoria do mesmo site">
                   <RefreshCw className="size-4" aria-hidden /> Reauditar

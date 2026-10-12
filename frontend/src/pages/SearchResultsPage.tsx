@@ -7,7 +7,7 @@ import type { Page, Search, SearchResult } from "@/api/types";
 import { CompanyFilters, useFilters } from "@/components/CompanyFilters";
 import { CompanyTable } from "@/components/CompanyTable";
 import { PageBody, PageHeader } from "@/components/Layout";
-import { Badge, Button, Card, EmptyState, ErrorState, Loading, Pagination, Spinner } from "@/components/ui";
+import { Badge, Card, EmptyState, ErrorState, Loading, Pagination, Spinner, buttonClass } from "@/components/ui";
 import { SEARCH_STATUS } from "./SearchesPage";
 
 /** Depois da busca, os sites vindos do e-mail do CNPJ ainda são verificados por alguns minutos. */
@@ -52,10 +52,8 @@ export default function SearchResultsPage() {
           )
         }
         actions={
-          <a href={`/api/searches/${id}/results${filterQs ? filterQs + "&" : "?"}formato=csv`}>
-            <Button variant="outline">
-              <Download className="size-4" aria-hidden /> Exportar CSV
-            </Button>
+          <a href={`/api/searches/${id}/results${filterQs ? filterQs + "&" : "?"}formato=csv`} className={buttonClass({ variant: "outline" })}>
+            <Download className="size-4" aria-hidden /> Exportar CSV
           </a>
         }
       />
