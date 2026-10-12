@@ -41,10 +41,12 @@ export default function AuditPage() {
       toast("Análise de IA reenfileirada.");
       setTimeout(() => client.invalidateQueries({ queryKey: ["audit", id] }), 1500);
     },
+    onError: (e) => toast(e.message, "error"),
   });
   const rerun = useMutation({
     mutationFn: () => api.post<{ audit_id: number }>(`audits/${id}/rerun`),
     onSuccess: (r) => navigate(`/auditorias/${r.audit_id}`),
+    onError: (e) => toast(e.message, "error"),
   });
 
   const grouped = useMemo(() => {

@@ -44,6 +44,7 @@ export default function CompanyPage() {
       setNote("");
       refresh();
     },
+    onError: (e) => toast(e.message, "error"),
   });
   const addSite = useMutation({
     mutationFn: () => api.post(`companies/${id}/websites`, { url: /^https?:\/\//.test(newSite) ? newSite : `https://${newSite}` }),
@@ -64,6 +65,7 @@ export default function CompanyPage() {
       toast("Empresa e todos os dados coletados foram excluídos.");
       navigate("/leads");
     },
+    onError: (e) => toast(e.message, "error"),
   });
 
   if (company.isLoading) return <Loading />;

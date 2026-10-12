@@ -10,6 +10,54 @@ export class ApiError extends Error {
   }
 }
 
+// Nome que a pessoa vê no formulário, no lugar do nome interno do campo
+const FIELD_LABELS: Record<string, string> = {
+  nome: "Nome",
+  email: "E-mail",
+  password: "Senha",
+  first_name: "Nome",
+  role: "Perfil",
+  otp: "Código",
+  category: "Categoria",
+  municipality: "Cidade",
+  termo_livre: "Termo de busca",
+  bairro: "Bairro",
+  telefone: "Telefone",
+  endereco: "Endereço",
+  cnpj: "CNPJ",
+  url: "Endereço do site",
+  texto: "Texto",
+  termos_busca: "Termos de busca",
+  cnaes: "CNAEs",
+  osm_tags: "Tags do OpenStreetMap",
+  item: "Item do checklist",
+  nome_empresa: "Empresa",
+  cor_primaria: "Cor principal",
+  whatsapp: "WhatsApp",
+  link_agenda: "Link de agenda",
+  email_contato: "E-mail de contato",
+  site: "Site",
+  logo: "Logo",
+  texto_abertura: "Texto de abertura",
+  resumo: "Resumo",
+  achados_ids: "Achados",
+  concorrentes_ids: "Concorrentes",
+  expira_em: "Data de expiração",
+  titulo: "Título",
+  dimensao: "Dimensão",
+  severidade: "Severidade",
+  impacto_negocio: "Impacto no negócio",
+  melhoria_proposta: "Melhoria proposta",
+  evidencia: "Evidência",
+  modelo: "Modelo",
+};
+
+function fieldLabel(key: string): string {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  const text = key.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function errorMessage(data: unknown): string {
   if (!data) return "";
   if (typeof data === "string") return data;
@@ -18,7 +66,7 @@ function errorMessage(data: unknown): string {
     const obj = data as Record<string, unknown>;
     if (typeof obj.detail === "string") return obj.detail;
     return Object.entries(obj)
-      .map(([k, v]) => (k === "non_field_errors" ? errorMessage(v) : `${k}: ${errorMessage(v)}`))
+      .map(([k, v]) => (k === "non_field_errors" ? errorMessage(v) : `${fieldLabel(k)}: ${errorMessage(v)}`))
       .join(" ");
   }
   return String(data);

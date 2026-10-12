@@ -134,7 +134,7 @@ function CategoryEditor({ category, admin }: { category: Category; admin: boolea
     onError,
   });
   const addItem = useMutation({ mutationFn: () => api.post(`categories/${category.id}/checklist`, item), onSuccess: () => { setItem({ ...item, item: "" }); invalidate(); }, onError });
-  const delItem = useMutation({ mutationFn: (itemId: number) => api.del(`categories/${category.id}/checklist/${itemId}`), onSuccess: invalidate });
+  const delItem = useMutation({ mutationFn: (itemId: number) => api.del(`categories/${category.id}/checklist/${itemId}`), onSuccess: invalidate, onError });
 
   return (
     <div className="space-y-4">
@@ -296,8 +296,9 @@ function BrandTab({ admin }: { admin: boolean }) {
 
 function RulesTab({ admin }: { admin: boolean }) {
   const client = useQueryClient();
+  const toast = useToast();
   const { data, isLoading } = useQuery({ queryKey: ["rules"], queryFn: () => api.get<RuleRow[]>("rules") });
-  const toggle = useMutation({ mutationFn: (r: RuleRow) => api.patch(`rules/${r.id}`, { ativo: !r.ativo }), onSuccess: () => client.invalidateQueries({ queryKey: ["rules"] }) });
+  const toggle = useMutation({ mutationFn: (r: RuleRow) => api.patch(`rules/${r.id}`, { ativo: !r.ativo }), onSuccess: () => client.invalidateQueries({ queryKey: ["rules"] }), onError: (e) => toast(e.message, "error") });
   if (isLoading) return <Loading />;
   return (
     <Card>
@@ -335,8 +336,9 @@ function PromptsTab() {
       setText("");
       toast("Nova versão ativa. As próximas análises usam este prompt.");
     },
+    onError: (e) => toast(e.message, "error"),
   });
-  const activate = useMutation({ mutationFn: (p: PromptVersion) => api.patch(`prompts/${p.id}`, { ativo: true }), onSuccess: () => client.invalidateQueries({ queryKey: ["prompts"] }) });
+  const activate = useMutation({ mutationFn: (p: PromptVersion) => api.patch(`prompts/${p.id}`, { ativo: true }), onSuccess: () => client.invalidateQueries({ queryKey: ["prompts"] }), onError: (e) => toast(e.message, "error") });
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
@@ -374,8 +376,8 @@ function UsersTab() {
   useReportDirty(!!(form.email || form.first_name || form.password));
   const invalidate = () => client.invalidateQueries({ queryKey: ["users"] });
   const create = useMutation({ mutationFn: () => api.post("users", form), onSuccess: () => { invalidate(); setForm({ email: "", first_name: "", role: "analista", password: "" }); toast("Conta criada. O 2FA é configurado no primeiro login."); }, onError: (e) => toast(e.message, "error") });
-  const toggle = useMutation({ mutationFn: (u: UserRow) => api.patch(`users/${u.id}`, { is_active: !u.is_active }), onSuccess: invalidate });
-  const reset2fa = useMutation({ mutationFn: (u: UserRow) => api.post(`users/${u.id}/reset_2fa`), onSuccess: () => { invalidate(); toast("2FA resetado: o usuário configura de novo no próximo login."); } });
+  const toggle = useMutation({ mutationFn: (u: UserRow) => api.patch(`users/${u.id}`, { is_active: !u.is_active }), onSuccess: invalidate, onError: (e) => toast(e.message, "error") });
+  const reset2fa = useMutation({ mutationFn: (u: UserRow) => api.post(`users/${u.id}/reset_2fa`), onSuccess: () => { invalidate(); toast("2FA resetado: o usuário configura de novo no próximo login."); }, onError: (e) => toast(e.message, "error") });
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
       <Card>
