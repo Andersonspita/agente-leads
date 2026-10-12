@@ -23,6 +23,8 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-insecure-troque-em-producao")
 DEBUG = env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [h for h in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
 CSRF_TRUSTED_ORIGINS = [o for o in os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:5173").split(",") if o]
+if DEBUG:  # o painel de desenvolvimento (Vite) sempre funciona, mesmo com um .env copiado da produção
+    CSRF_TRUSTED_ORIGINS += [o for o in ("http://localhost:5173", "http://127.0.0.1:5173") if o not in CSRF_TRUSTED_ORIGINS]
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
 # Endereço onde ficam as prévias dos sites gerados (/s/<token>/). Use um host separado do painel:
 # localmente 127.0.0.1 (o painel usa localhost); em produção, por exemplo, https://previa.seudominio.com.br.

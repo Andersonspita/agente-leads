@@ -2,6 +2,7 @@ import logging
 import time
 
 from celery import shared_task
+from django.utils import timezone
 
 from .models import Audit, AuditStep
 
@@ -30,6 +31,7 @@ def ai_analysis(self, audit_id):
     step, _ = AuditStep.objects.get_or_create(audit=audit, etapa="ia", defaults={"ordem": 8})
     step.status = AuditStep.Status.RUNNING
     step.erro = ""
+    step.iniciado_em = timezone.now()
     step.save()
     started = time.monotonic()
     try:

@@ -144,6 +144,7 @@ def test_batch_audit_skips_companies_without_site(api, city):
 @pytest.mark.django_db
 def test_finding_review_and_report_gate(api, audited):
     audit, ai = audited
+    assert api.get(f"/api/findings/{ai.pk}").data["editado_por_nome"] is None  # não vaza "<method-wrapper ...>"
     r = api.post("/api/reports", {"audit": audit.pk}, format="json")
     assert r.status_code == 400  # achado de IA pendente bloqueia o relatório
 

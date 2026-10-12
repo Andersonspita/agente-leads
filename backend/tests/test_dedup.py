@@ -84,3 +84,15 @@ def test_name_index_matches_like_full_scan(city):
     assert index.best_match(normalize_company_name("Padaria Central ME")) == novo.pk
     found = find_duplicate(Candidate("Clinica Sorriso Ltda", municipality_id=city.pk), index)
     assert found == a
+
+
+@pytest.mark.django_db
+def test_different_cnpjs_sharing_the_accountant_phone_stay_separate(city, category):
+    search = Search.objects.create(category=category, municipality=city)
+    dentist, _ = upsert_company({"nome": "Estacao Oral", "cnpj": "11111111000111", "telefone": "7734240201"},
+                                search, "cnpj", 1)
+    accountant, created = upsert_company({"nome": "Emafil Contabilidade", "cnpj": "22222222000122",
+                                          "telefone": "(77) 3424-0201"}, search, "cnpj", 2)
+    assert created and accountant.pk != dentist.pk
+    same, created = upsert_company({"nome": "Emafil Contabil Ltda", "cnpj": "22222222000122"}, search, "cnpj", 3)
+    assert not created and same.pk == accountant.pk  # mesmo CNPJ: mesma empresa

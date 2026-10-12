@@ -5,7 +5,10 @@ neutros. Nada é inventado: sem número de registro profissional, prêmios, anos
 preços ou depoimentos fictícios. O que depende do cliente vai para a lista "a_confirmar".
 """
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
+
+from django.db import connection
 
 from apps.audits.engine import ai
 from apps.audits.models import Audit, Finding
@@ -13,6 +16,10 @@ from apps.core.text import normalize
 from apps.leads.models import CnpjEstablishment, Company
 
 logger = logging.getLogger(__name__)
+
+# A geração roda dentro da requisição: a IA tem esse tempo, depois o site sai com os textos-base
+# (o gunicorn derruba a requisição em 120 s e a IA, com novas tentativas, pode passar disso).
+AI_WAIT_SECONDS = 60
 
 # Paleta, ícone e tipo schema.org por categoria (pela palavra-chave no nome da categoria).
 THEMES = [
@@ -124,6 +131,13 @@ def _validate_copy(data: dict) -> dict:
     return data
 
 
+def _ask_ai(prompt: str):
+    try:
+        return ai.complete_json(prompt, SITE_COPY_SCHEMA, _validate_copy)
+    finally:
+        connection.close()  # conexão própria desta thread (registro de custo da IA)
+
+
 def build_content(company: Company, audit: Audit | None) -> tuple[dict, bool, str]:
     """Devolve (conteudo, gerado_por_ia, modelo)."""
     cidade = company.municipality.nome if company.municipality_id else ""
@@ -144,11 +158,14 @@ def build_content(company: Company, audit: Audit | None) -> tuple[dict, bool, st
             problemas="\n".join(f"- {p}" for p in problemas) or "- (sem diagnóstico: empresa sem site)",
             checklist="\n".join(f"- {c}" for c in checklist) or "- (nenhum)",
         )
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
-            copy, model = ai.complete_json(prompt, SITE_COPY_SCHEMA, _validate_copy)
+            copy, model = pool.submit(_ask_ai, prompt).result(timeout=AI_WAIT_SECONDS)
             by_ai = True
         except Exception as exc:  # IA fora do ar, limite gratuito etc.: segue com os textos-base
-            logger.warning("IA indisponível para os textos do site: %s", exc)
+            logger.warning("IA indisponível para os textos do site: %r", exc)
+        finally:
+            pool.shutdown(wait=False)  # não segura a requisição esperando a IA terminar
     if copy is None:
         copy = default_copy(company, cidade, categoria)
 

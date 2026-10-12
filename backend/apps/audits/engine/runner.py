@@ -149,7 +149,8 @@ class AuditRunner:
             return
         step.status = AuditStep.Status.PENDING
         step.erro = ""
-        step.save(update_fields=["status", "erro"])
+        step.iniciado_em = timezone.now()
+        step.save(update_fields=["status", "erro", "iniciado_em"])
         enqueue(ai_analysis, self.audit.pk)
 
     @staticmethod

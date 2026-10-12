@@ -166,3 +166,27 @@ def test_queued_audits_waiting_their_turn_are_not_reaped(blocked_audit, settings
     queued_old = Audit.objects.create(website=blocked_audit.website)
     Audit.objects.filter(pk=queued_old.pk).update(criado_em=timezone.now() - timedelta(hours=5))
     assert jobs.reap_stale_jobs() == []
+
+
+@pytest.mark.django_db
+def test_ai_step_lost_on_restart_is_reaped_but_rerun_is_not(blocked_audit, settings, monkeypatch):
+    from datetime import timedelta
+
+    from apps.core import jobs
+
+    settings.CELERY_BROKER_URL = ""
+    monkeypatch.setattr(jobs, "PROCESS_STARTED", timezone.now() - timedelta(minutes=5))
+    blocked_audit.status = Audit.Status.DONE
+    blocked_audit.concluido_em = timezone.now() - timedelta(minutes=10)
+    blocked_audit.save()
+    step, _ = AuditStep.objects.update_or_create(audit=blocked_audit, etapa="ia", defaults={
+        "ordem": 8, "status": AuditStep.Status.RUNNING, "iniciado_em": timezone.now() - timedelta(minutes=9)})
+    jobs.reap_stale_jobs()
+    step.refresh_from_db()
+    assert step.status == AuditStep.Status.FAILED and "Rodar IA" in step.erro
+
+    step.status, step.iniciado_em = AuditStep.Status.RUNNING, timezone.now()  # "Rodar IA" depois do reinício
+    step.save()
+    jobs.reap_stale_jobs()
+    step.refresh_from_db()
+    assert step.status == AuditStep.Status.RUNNING

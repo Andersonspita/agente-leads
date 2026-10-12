@@ -75,6 +75,13 @@ def reap_stale_jobs():
             status=Audit.Status.FAILED, concluido_em=now,
             erro="Auditoria interrompida (o servidor foi reiniciado ou o processo caiu). Use “Tentar de novo”.")
         logger.warning("Auditorias interrompidas marcadas como falhas: %s", ids)
+    # A IA roda em job próprio depois da auditoria concluída: se o processo cai, a etapa fica "executando".
+    ai_q = Q(status=AuditStep.Status.RUNNING, iniciado_em__lt=now - timedelta(seconds=settings.AI_TIMEOUT * 10))
+    if not settings.CELERY_BROKER_URL:
+        ai_q |= Q(status__in=[AuditStep.Status.PENDING, AuditStep.Status.RUNNING]) & (
+            Q(iniciado_em__lt=PROCESS_STARTED) | Q(iniciado_em__isnull=True, audit__concluido_em__lt=PROCESS_STARTED))
+    AuditStep.objects.filter(ai_q, etapa="ia", audit__status=Audit.Status.DONE).update(
+        status=AuditStep.Status.FAILED, erro="Análise por IA interrompida (servidor reiniciado). Use “Rodar IA”.")
     search_q = Q(status=Search.Status.RUNNING, criado_em__lt=now - timedelta(minutes=30))
     if not settings.CELERY_BROKER_URL:
         search_q |= Q(status__in=[Search.Status.QUEUED, Search.Status.RUNNING], criado_em__lt=PROCESS_STARTED)

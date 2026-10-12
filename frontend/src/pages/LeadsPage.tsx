@@ -66,11 +66,12 @@ function AddCompanyDialog({ open, onClose }: { open: boolean; onClose: () => voi
   const [form, setForm] = useState({ nome: "", url: "", category: "", telefone: "" });
   const [uf, setUf] = useState("BA");
   const [city, setCity] = useState<Municipality | null>(null);
+  const url = form.url && !/^https?:\/\//.test(form.url) ? `https://${form.url}` : form.url;
   const create = useMutation({
     mutationFn: (auditar: boolean) =>
       api.post<CompanyDetail>("companies", {
         nome: form.nome,
-        url: form.url,
+        url, // já com https:// mesmo se o clique vier antes do onBlur atualizar o estado
         telefone: form.telefone,
         category: form.category ? Number(form.category) : null,
         municipality: city?.codigo_ibge ?? null,
@@ -88,7 +89,6 @@ function AddCompanyDialog({ open, onClose }: { open: boolean; onClose: () => voi
       }
     },
   });
-  const url = form.url && !/^https?:\/\//.test(form.url) ? `https://${form.url}` : form.url;
 
   return (
     <Dialog

@@ -56,7 +56,7 @@ def upsert_company(data: dict, search: Search, fonte: str, posicao: int,
                    name_index: NameIndex | None = None) -> tuple[Company, bool]:
     candidate = Candidate(
         nome=data["nome"], telefone=data.get("telefone", ""), site=data.get("site", ""),
-        municipality_id=search.municipality_id,
+        municipality_id=search.municipality_id, cnpj=data.get("cnpj") or "",
     )
     company = find_duplicate(candidate, name_index)
     created = company is None
@@ -78,8 +78,8 @@ def upsert_company(data: dict, search: Search, fonte: str, posicao: int,
     if not company.category and search.category:
         company.category = search.category
     company.save()
-    if created and name_index is not None:
-        name_index.add(company.pk, company.nome_normalizado)
+    if name_index is not None:
+        name_index.add(company.pk, company.nome_normalizado, company.cnpj)
 
     site = data.get("site")
     if site and not is_shared_domain(normalize_domain(site)):

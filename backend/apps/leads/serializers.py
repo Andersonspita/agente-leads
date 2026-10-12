@@ -34,7 +34,7 @@ def site_state(company) -> str:
 
 
 class CompanyListSerializer(serializers.ModelSerializer):
-    municipio = serializers.CharField(source="municipality.__str__", default="", read_only=True)
+    municipio = serializers.StringRelatedField(source="municipality")
     categoria = serializers.CharField(source="category.nome", default="", read_only=True)
     site = serializers.SerializerMethodField()
     situacao_site = serializers.SerializerMethodField()
@@ -67,7 +67,7 @@ class CompanyListSerializer(serializers.ModelSerializer):
 
 
 class LeadNoteSerializer(serializers.ModelSerializer):
-    autor_nome = serializers.CharField(source="autor.__str__", default="", read_only=True)
+    autor_nome = serializers.StringRelatedField(source="autor")
 
     class Meta:
         model = LeadNote
@@ -79,7 +79,7 @@ class CompanyDetailSerializer(CompanyListSerializer):
     notes = LeadNoteSerializer(many=True, read_only=True)
     municipality_data = MunicipalitySerializer(source="municipality", read_only=True)
     transicoes = serializers.SerializerMethodField()
-    responsavel_nome = serializers.CharField(source="responsavel.__str__", default="", read_only=True)
+    responsavel_nome = serializers.StringRelatedField(source="responsavel")
 
     class Meta(CompanyListSerializer.Meta):
         fields = CompanyListSerializer.Meta.fields + [
@@ -113,8 +113,8 @@ class CompanyCreateSerializer(serializers.ModelSerializer):
 
 class SearchSerializer(serializers.ModelSerializer):
     categoria = serializers.CharField(source="category.nome", default="", read_only=True)
-    municipio = serializers.CharField(source="municipality.__str__", read_only=True)
-    criado_por_nome = serializers.CharField(source="criado_por.__str__", default="", read_only=True)
+    municipio = serializers.StringRelatedField(source="municipality")
+    criado_por_nome = serializers.StringRelatedField(source="criado_por")
 
     class Meta:
         model = Search

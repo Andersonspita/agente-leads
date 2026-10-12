@@ -33,7 +33,7 @@ class StepSerializer(serializers.ModelSerializer):
 
 class FindingSerializer(serializers.ModelSerializer):
     dimensao_nome = serializers.CharField(source="get_dimensao_display", read_only=True)
-    editado_por_nome = serializers.CharField(source="editado_por.__str__", default="", read_only=True)
+    editado_por_nome = serializers.StringRelatedField(source="editado_por")
 
     class Meta:
         model = Finding

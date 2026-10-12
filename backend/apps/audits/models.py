@@ -69,6 +69,7 @@ class AuditStep(models.Model):
     duracao_ms = models.PositiveIntegerField(null=True, blank=True)
     erro = models.TextField(blank=True)
     resultado = models.JSONField(default=dict, blank=True)
+    iniciado_em = models.DateTimeField(null=True, blank=True)  # usado pelo reaper na etapa de IA (job separado)
 
     class Meta:
         ordering = ["ordem"]

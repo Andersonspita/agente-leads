@@ -66,15 +66,15 @@ export function DimensionCard({ dim, onClick, active }: { dim: DimensionScore; o
       )}
       aria-pressed={active}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
           <Icon className="size-3.5" strokeWidth={1.75} aria-hidden /> {meta.nome}
         </span>
-        {dim.peso !== null && dim.peso !== undefined && <span className="text-[10px] text-muted">peso {Math.round(dim.peso * 100)}%</span>}
+        {dim.peso !== null && dim.peso !== undefined && <span className="whitespace-nowrap text-[10px] text-muted">peso {Math.round(dim.peso * 100)}%</span>}
       </div>
-      <div className="flex items-end justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-x-2">
         <span className={cn("text-2xl font-bold tabular-nums", bandText[dim.faixa])}>{dim.nota ?? "—"}</span>
-        <span className="text-xs text-muted">
+        <span className="whitespace-nowrap text-xs text-muted">
           {dim.achados} {dim.achados === 1 ? "achado" : "achados"}
         </span>
       </div>

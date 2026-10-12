@@ -52,6 +52,21 @@ def test_content_uses_ai_copy_when_available(settings, lead):
     assert "NÃO invente fatos" in prompt and "Vitória da Conquista" in prompt
 
 
+@pytest.mark.django_db
+def test_slow_ai_falls_back_to_base_copy(settings, lead, monkeypatch):
+    import threading
+
+    from apps.sitebuilder import content as content_mod
+
+    settings.GEMINI_API_KEY = "x"
+    monkeypatch.setattr(content_mod, "AI_WAIT_SECONDS", 0.2)
+    release = threading.Event()
+    with mock.patch("apps.audits.engine.ai.complete_json", side_effect=lambda *a: release.wait(5)):
+        content, by_ai, _ = build_content(lead, None)
+    release.set()
+    assert not by_ai and content["headline"]  # não espera a IA lenta: sai com os textos-base
+
+
 def _ctx_from(files, base="http://127.0.0.1:8000/s/tok/"):
     html = files["index.html"][0].decode()
     page = Page(url=base, final_url=base, status=200, headers={"content-type": "text/html"}, html=html, elapsed_ms=50)
