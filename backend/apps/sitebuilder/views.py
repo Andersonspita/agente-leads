@@ -95,10 +95,14 @@ class SiteProjectSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Formato inválido.")
         current = dict(self.instance.conteudo) if self.instance else {}
         current.update({k: v for k, v in value.items() if k in EDITABLE_KEYS})
-        errors = content_errors(current)
+        return current
+
+    def validate(self, attrs):
+        # Erro geral, não preso ao campo "conteudo": cada mensagem já diz qual dado do site está errado
+        errors = content_errors(attrs["conteudo"]) if "conteudo" in attrs else []
         if errors:
             raise serializers.ValidationError(errors)
-        return current
+        return attrs
 
 
 class SiteProjectViewSet(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin,

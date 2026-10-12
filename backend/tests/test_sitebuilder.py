@@ -164,6 +164,7 @@ def test_editor_rejects_unsafe_links_and_invalid_colors(api, lead):
                 {"link_agendamento": "agenda.com.br"}, {"servicos": "x"}):
         r = api.patch(f"/api/sites/{pid}", {"conteudo": bad}, format="json")
         assert r.status_code == 400, bad
+        assert "conteudo" not in r.data and r.data["non_field_errors"], r.data  # mensagem sem nome técnico do campo
     r = api.patch(f"/api/sites/{pid}", {"conteudo": {"instagram": "https://instagram.com/odonto", "cor": "#123abc"}},
                   format="json")
     assert r.status_code == 200 and r.data["conteudo"]["cor"] == "#123abc"
