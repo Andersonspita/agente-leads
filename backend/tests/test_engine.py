@@ -1,6 +1,7 @@
 """Motor de auditoria de ponta a ponta contra um site servido localmente (sem internet)."""
 import json
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 from unittest import mock
@@ -29,6 +30,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         Handler.hits.append(self.path)
+        if self.path == "/devagar":  # 1 byte a cada 0,2 s: nenhuma leitura isolada estoura o timeout
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", "1000")
+            self.end_headers()
+            try:
+                for _ in range(1000):
+                    self.wfile.write(b"x")
+                    self.wfile.flush()
+                    time.sleep(0.2)
+            except OSError:
+                pass  # o robô desistiu e fechou a conexão
+            return
         body = self.pages.get(self.path)
         if body is None:
             self.send_response(404)
@@ -299,3 +313,13 @@ def test_crawler_reads_at_most_max_body_bytes(site, monkeypatch):
     finally:
         del Handler.pages["/enorme"]
     assert page.status == 200 and len(page.html) == 100_000
+
+
+def test_crawler_gives_up_on_a_page_that_drips_slowly(site, settings):
+    import requests
+
+    settings.CRAWLER_PAGE_TIMEOUT = 1
+    started = time.monotonic()
+    with pytest.raises(requests.Timeout):
+        Crawler().fetch_page(site + "/devagar")
+    assert time.monotonic() - started < 3

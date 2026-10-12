@@ -77,13 +77,24 @@ MAX_BODY_BYTES = 3_000_000
 
 
 def _read_limited(resp: requests.Response):
-    """Lê no máximo MAX_BODY_BYTES: uma página (ou arquivo) gigante não ocupa a memória do worker."""
+    """Lê no máximo MAX_BODY_BYTES e por no máximo CRAWLER_PAGE_TIMEOUT segundos no total.
+
+    O timeout do requests vale por leitura: um site que manda 1 byte a cada poucos segundos nunca
+    estoura. read1 devolve o que chegou, então o prazo total é conferido a cada pedaço.
+    shortcut: com gzip, um pedaço que não descomprime nada é lido dentro do urllib3 sem conferir o
+    prazo; se aparecer na prática, ler sem decodificar e descomprimir aqui.
+    """
+    deadline = time.monotonic() + settings.CRAWLER_PAGE_TIMEOUT
     chunks, size = [], 0
-    for chunk in resp.iter_content(64 * 1024):
+    while size < MAX_BODY_BYTES:
+        if time.monotonic() > deadline:
+            resp.close()
+            raise requests.Timeout(f"A página levou mais de {settings.CRAWLER_PAGE_TIMEOUT} s para chegar")
+        chunk = resp.raw.read1(64 * 1024, decode_content=True)
+        if not chunk:  # fim da resposta
+            break
         chunks.append(chunk)
         size += len(chunk)
-        if size >= MAX_BODY_BYTES:
-            break
     resp._content = b"".join(chunks)[:MAX_BODY_BYTES]  # .text e .content passam a usar só o lido
     resp.close()
 
