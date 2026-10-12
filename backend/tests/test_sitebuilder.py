@@ -155,3 +155,15 @@ def test_site_creation_returns_at_once_and_queues_the_ai(api, lead, settings):
     assert r.status_code == 201 and r.data["ia_status"] == "pendente"
     assert not call.called  # a requisição não espera a IA
     assert enqueue.call_args.args[1] == r.data["id"]
+
+
+@pytest.mark.django_db
+def test_editor_rejects_unsafe_links_and_invalid_colors(api, lead):
+    pid = SiteProject.objects.create(company=lead, conteudo=build_content(lead, None)).pk
+    for bad in ({"instagram": "javascript:alert(1)"}, {"cor": "red;}body{display:none"},
+                {"link_agendamento": "agenda.com.br"}, {"servicos": "x"}):
+        r = api.patch(f"/api/sites/{pid}", {"conteudo": bad}, format="json")
+        assert r.status_code == 400, bad
+    r = api.patch(f"/api/sites/{pid}", {"conteudo": {"instagram": "https://instagram.com/odonto", "cor": "#123abc"}},
+                  format="json")
+    assert r.status_code == 200 and r.data["conteudo"]["cor"] == "#123abc"

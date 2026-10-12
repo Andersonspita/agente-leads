@@ -6,7 +6,7 @@ import { api } from "@/api/client";
 import type { Capabilities, Dashboard } from "@/api/types";
 import { PageBody, PageHeader } from "@/components/Layout";
 import { StatusPill } from "@/components/domain";
-import { Button, Card, CardHeader, EmptyState, ErrorState, Loading } from "@/components/ui";
+import { Card, CardHeader, EmptyState, ErrorState, Loading, buttonClass } from "@/components/ui";
 import { fmtDateTime, fmtMoney } from "@/lib/utils";
 
 const ACTIONS: Record<string, string> = {
@@ -44,10 +44,8 @@ export default function DashboardPage() {
         title="Painel"
         description="Funil de vendas, auditorias em andamento e custos do mês"
         actions={
-          <Link to="/buscas/nova">
-            <Button>
-              <Search className="size-4" aria-hidden /> Nova busca
-            </Button>
+          <Link to="/buscas/nova" className={buttonClass()}>
+            <Search className="size-4" aria-hidden /> Nova busca
           </Link>
         }
       />
@@ -62,9 +60,7 @@ export default function DashboardPage() {
               title="Nenhum lead ainda"
               description="Comece buscando empresas de uma categoria numa cidade — por exemplo, clínicas odontológicas em Vitória da Conquista/BA. Ou cadastre uma URL avulsa em Leads."
               action={
-                <Link to="/buscas/nova">
-                  <Button>Fazer a primeira busca</Button>
-                </Link>
+                <Link to="/buscas/nova" className={buttonClass()}>Fazer a primeira busca</Link>
               }
             />
           </Card>

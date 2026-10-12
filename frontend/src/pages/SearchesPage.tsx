@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import type { Page, Search } from "@/api/types";
 import { PageBody, PageHeader } from "@/components/Layout";
-import { Badge, Button, Card, EmptyState, ErrorState, Loading, Spinner } from "@/components/ui";
+import { Badge, Card, EmptyState, ErrorState, Loading, Spinner, buttonClass } from "@/components/ui";
 import { fmtDateTime } from "@/lib/utils";
 
 export const SEARCH_STATUS: Record<Search["status"], { nome: string; className: string }> = {
@@ -28,10 +28,8 @@ export default function SearchesPage() {
         title="Buscas"
         description="Histórico de prospecções por categoria e cidade"
         actions={
-          <Link to="/buscas/nova">
-            <Button>
-              <SearchIcon className="size-4" aria-hidden /> Nova busca
-            </Button>
+          <Link to="/buscas/nova" className={buttonClass()}>
+            <SearchIcon className="size-4" aria-hidden /> Nova busca
           </Link>
         }
       />
@@ -45,9 +43,7 @@ export default function SearchesPage() {
               title="Nenhuma busca ainda"
               description="Busque empresas por categoria + cidade para montar sua lista de prospecção."
               action={
-                <Link to="/buscas/nova">
-                  <Button>Nova busca</Button>
-                </Link>
+                <Link to="/buscas/nova" className={buttonClass()}>Nova busca</Link>
               }
             />
           )}

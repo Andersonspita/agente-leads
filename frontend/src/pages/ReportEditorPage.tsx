@@ -8,7 +8,8 @@ import type { Comparison, Page, Report } from "@/api/types";
 import { PageHeader } from "@/components/Layout";
 import { SeverityBadge } from "@/components/domain";
 import { useToast } from "@/components/toast";
-import { Badge, Button, Card, CardHeader, Checkbox, ErrorState, Field, Input, Loading, Textarea } from "@/components/ui";
+import { useUnsavedChanges } from "@/lib/useUnsavedChanges";
+import { Badge, Button, Card, CardHeader, Checkbox, ErrorState, Dialog, Field, Input, Loading, Textarea, buttonClass } from "@/components/ui";
 import { SEVERITIES } from "@/lib/labels";
 import { fmtDate, fmtDateTime } from "@/lib/utils";
 import { useAudit } from "./AuditPage";
@@ -43,18 +44,25 @@ export default function ReportEditorPage() {
   const [showNames, setShowNames] = useState(false);
   const [expires, setExpires] = useState("");
   const [previewKey, setPreviewKey] = useState(0);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const snapshot = JSON.stringify([order, opening, summary, competitors, showNames, expires]);
+  useUnsavedChanges(!!report && !!savedSnapshot && snapshot !== savedSnapshot);
 
   useEffect(() => {
     if (!audit.data || reports.isLoading) return;
     const ids = confirmed.map((f) => f.id);
     if (report) {
       const saved = report.achados_ids.filter((x) => ids.includes(x));
-      setOrder([...saved, ...ids.filter((x) => !saved.includes(x))]);
-      setOpening(report.texto_abertura);
-      setSummary(report.resumo);
-      setCompetitors(report.concorrentes_ids);
-      setShowNames(report.exibir_nomes_concorrentes);
-      setExpires(report.expira_em.slice(0, 10));
+      const loaded = [[...saved, ...ids.filter((x) => !saved.includes(x))], report.texto_abertura, report.resumo,
+        report.concorrentes_ids, report.exibir_nomes_concorrentes, report.expira_em.slice(0, 10)] as const;
+      setOrder([...loaded[0]]);
+      setOpening(loaded[1]);
+      setSummary(loaded[2]);
+      setCompetitors(loaded[3]);
+      setShowNames(loaded[4]);
+      setExpires(loaded[5]);
+      setSavedSnapshot(JSON.stringify(loaded));
     } else {
       setOrder(ids);
       setOpening(`Olá! Analisamos o site da ${audit.data.empresa} com os mesmos critérios que o Google e os clientes usam. Abaixo estão os pontos que mais impedem o site de trazer novos contatos — e como resolvê-los.`);
@@ -84,6 +92,7 @@ export default function ReportEditorPage() {
     mutationFn: () => (report ? api.patch<Report>(`reports/${report.id}`, body) : api.post<Report>("reports", body)),
     onSuccess: () => {
       toast(report ? "Relatório atualizado; PDF sendo regenerado." : "Link e PDF gerados.");
+      setSavedSnapshot(snapshot);
       refresh();
     },
     onError: (e) => toast(e.message, "error"),
@@ -92,9 +101,11 @@ export default function ReportEditorPage() {
     mutationFn: (path: "revoke" | "mark_sent") => api.post<Report>(`reports/${report!.id}/${path}`, { canal: "whatsapp" }),
     onSuccess: (_r, path) => {
       toast(path === "revoke" ? "Link revogado." : "Marcado como enviado; lead avançou no funil.");
+      setConfirmRevoke(false);
       refresh();
       client.invalidateQueries({ queryKey: ["dashboard"] });
     },
+    onError: (e) => toast(e.message, "error"),
   });
 
   if (audit.isLoading || reports.isLoading) return <Loading />;
@@ -140,21 +151,15 @@ export default function ReportEditorPage() {
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noreferrer">
-                    <Button size="sm" variant="outline">
-                      <Send className="size-3.5" aria-hidden /> Abrir no WhatsApp
-                    </Button>
+                  <a href={`https://wa.me/?text=${encodeURIComponent(shareText)}`} target="_blank" rel="noreferrer" className={buttonClass({ variant: "outline", size: "sm" })}>
+                    <Send className="size-3.5" aria-hidden /> Abrir no WhatsApp
                   </a>
-                  <a href={report.url_publica} target="_blank" rel="noreferrer">
-                    <Button size="sm" variant="outline">
-                      <ExternalLink className="size-3.5" aria-hidden /> Abrir link
-                    </Button>
+                  <a href={report.url_publica} target="_blank" rel="noreferrer" className={buttonClass({ variant: "outline", size: "sm" })}>
+                    <ExternalLink className="size-3.5" aria-hidden /> Abrir link
                   </a>
                   {report.pdf_url && report.pdf_status === "pronto" ? (
-                    <a href={report.pdf_url} target="_blank" rel="noreferrer">
-                      <Button size="sm" variant="outline">
-                        <Download className="size-3.5" aria-hidden /> PDF
-                      </Button>
+                    <a href={report.pdf_url} target="_blank" rel="noreferrer" className={buttonClass({ variant: "outline", size: "sm" })}>
+                      <Download className="size-3.5" aria-hidden /> PDF
                     </a>
                   ) : (
                     <Badge className="bg-surface-2 text-muted">PDF: {report.pdf_status}</Badge>
@@ -166,7 +171,7 @@ export default function ReportEditorPage() {
                       Marcar como enviado
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" className="text-bad" onClick={() => action.mutate("revoke")} loading={action.isPending && action.variables === "revoke"}>
+                  <Button size="sm" variant="ghost" className="text-bad" onClick={() => setConfirmRevoke(true)}>
                     <Ban className="size-3.5" aria-hidden /> Revogar link
                   </Button>
                 </div>
@@ -251,6 +256,25 @@ export default function ReportEditorPage() {
           )}
         </div>
       </div>
+      <Dialog
+        open={confirmRevoke}
+        onClose={() => setConfirmRevoke(false)}
+        title="Revogar o link do relatório?"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmRevoke(false)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" loading={action.isPending && action.variables === "revoke"} onClick={() => action.mutate("revoke")}>
+              Revogar link
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted">
+          Quem abrir o link recebido passa a ver “relatório indisponível”, inclusive se já foi enviado ao cliente. Para voltar a compartilhar, é preciso gerar um link novo.
+        </p>
+      </Dialog>
     </div>
   );
 }

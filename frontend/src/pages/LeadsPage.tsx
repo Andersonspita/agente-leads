@@ -9,7 +9,7 @@ import { CityPicker } from "@/components/CityPicker";
 import { CompanyFilters, useFilters } from "@/components/CompanyFilters";
 import { CompanyTable } from "@/components/CompanyTable";
 import { PageBody, PageHeader } from "@/components/Layout";
-import { Button, Card, Dialog, EmptyState, ErrorState, Field, Input, Loading, Pagination, Select } from "@/components/ui";
+import { Button, Card, Dialog, EmptyState, ErrorState, Field, Input, Loading, Pagination, Select, buttonClass } from "@/components/ui";
 import { UFS } from "@/lib/labels";
 
 export default function LeadsPage() {
@@ -28,10 +28,8 @@ export default function LeadsPage() {
         description="Todas as empresas prospectadas (CRM leve)"
         actions={
           <>
-            <a href={`/api/companies/export${qs({ ...values, page: undefined })}`}>
-              <Button variant="outline">
-                <Download className="size-4" aria-hidden /> CSV
-              </Button>
+            <a href={`/api/companies/export${qs({ ...values, page: undefined })}`} className={buttonClass({ variant: "outline" })}>
+              <Download className="size-4" aria-hidden /> CSV
             </a>
             <Button onClick={() => setAdding(true)}>
               <Plus className="size-4" aria-hidden /> URL avulsa

@@ -28,6 +28,16 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+/** Visual de botão para links (<a>/<Link>): botão dentro de link é HTML inválido e confunde leitores de tela. */
+export function buttonClass({ variant = "primary", size = "md", className }: { variant?: Variant; size?: "sm" | "md"; className?: string } = {}) {
+  return cn(
+    "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+    size === "sm" ? "h-8 px-2.5 text-xs" : "h-9 px-3.5 text-sm",
+    VARIANTS[variant],
+    className,
+  );
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = "primary", size = "md", loading, className, children, disabled, ...props },
   ref,
@@ -35,12 +45,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   return (
     <button
       ref={ref}
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "h-8 px-2.5 text-xs" : "h-9 px-3.5 text-sm",
-        VARIANTS[variant],
-        className,
-      )}
+      className={buttonClass({ variant, size, className })}
       disabled={disabled || loading}
       {...props}
     >

@@ -1,4 +1,8 @@
+import re
+
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import URLValidator, validate_email
 from django.http import Http404, HttpResponse
 from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
@@ -21,6 +25,40 @@ EDITABLE_KEYS = {
     "horario", "instagram", "facebook", "link_agendamento", "agendamento", "cor", "cor_destaque", "titulo_seo",
     "descricao_seo", "headline", "subheadline", "sobre", "servicos", "diferenciais", "faq", "a_confirmar",
 }
+
+
+HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
+LINK_LABELS = {"instagram": "Instagram", "facebook": "Facebook", "link_agendamento": "Link de agendamento"}
+LIST_FIELDS = {"servicos": ("titulo", "descricao"), "diferenciais": ("titulo", "descricao"), "faq": ("pergunta", "resposta")}
+
+
+def content_errors(c: dict) -> list[str]:
+    """Valida o que vai para o HTML público: cor vira CSS e link vira href (javascript: seria XSS)."""
+    errors = []
+    for key, label in (("cor", "Cor principal"), ("cor_destaque", "Cor de destaque")):
+        if not HEX_COLOR.match(str(c.get(key) or "")):
+            errors.append(f"{label} inválida: use o formato #1d4ed8.")
+    for key, label in LINK_LABELS.items():
+        link = str(c.get(key) or "")
+        if link:
+            try:
+                URLValidator(schemes=["http", "https"])(link)
+            except DjangoValidationError:
+                errors.append(f"{label}: informe um endereço completo começando com https://")
+    if c.get("email"):
+        try:
+            validate_email(c["email"])
+        except DjangoValidationError:
+            errors.append("E-mail inválido.")
+    for key, label in (("telefone", "Telefone"), ("whatsapp", "WhatsApp"), ("cep", "CEP")):
+        if c.get(key) and not str(c[key]).isdigit():
+            errors.append(f"{label}: use só números.")
+    for key, fields in LIST_FIELDS.items():
+        items = c.get(key, [])
+        if not isinstance(items, list) or not all(
+                isinstance(i, dict) and all(isinstance(i.get(f, ""), str) for f in fields) for i in items):
+            errors.append(f"Lista '{key}' em formato inválido.")
+    return errors
 
 
 def _audit_summary(audit):
@@ -57,6 +95,9 @@ class SiteProjectSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Formato inválido.")
         current = dict(self.instance.conteudo) if self.instance else {}
         current.update({k: v for k, v in value.items() if k in EDITABLE_KEYS})
+        errors = content_errors(current)
+        if errors:
+            raise serializers.ValidationError(errors)
         return current
 
 

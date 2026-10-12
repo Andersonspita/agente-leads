@@ -8,7 +8,8 @@ import type { Briefing, BriefingContent, CompanyDetail, Page } from "@/api/types
 import { PageBody, PageHeader } from "@/components/Layout";
 import { ScoreChip, SeverityBadge } from "@/components/domain";
 import { useToast } from "@/components/toast";
-import { Button, Card, CardHeader, EmptyState, Input, Loading, Select } from "@/components/ui";
+import { useUnsavedChanges } from "@/lib/useUnsavedChanges";
+import { Button, Card, CardHeader, EmptyState, Input, Loading, Select, buttonClass } from "@/components/ui";
 import { fmtDate } from "@/lib/utils";
 
 type ListKey = "paginas" | "secoes" | "integracoes" | "conteudo_necessario";
@@ -48,7 +49,10 @@ export default function BriefingPage() {
       client.invalidateQueries({ queryKey: ["briefings"] });
       toast("Briefing salvo.");
     },
+    onError: (e) => toast(e.message, "error"),
   });
+  const dirty = !!briefing && !!content && JSON.stringify(content) !== JSON.stringify(briefing.conteudo);
+  useUnsavedChanges(dirty);
 
   const editList = (key: ListKey, fn: (items: string[]) => string[]) => setContent((c) => c && { ...c, [key]: fn(c[key]) });
 
@@ -71,15 +75,11 @@ export default function BriefingPage() {
             )}
             {briefing && (
               <>
-                <a href={`/api/briefings/${briefing.id}/pdf`}>
-                  <Button variant="outline">
-                    <Download className="size-4" aria-hidden /> PDF
-                  </Button>
+                <a href={`/api/briefings/${briefing.id}/pdf`} className={buttonClass({ variant: "outline" })}>
+                  <Download className="size-4" aria-hidden /> PDF
                 </a>
-                <a href={`/api/briefings/${briefing.id}/markdown`}>
-                  <Button variant="outline">
-                    <Download className="size-4" aria-hidden /> Markdown
-                  </Button>
+                <a href={`/api/briefings/${briefing.id}/markdown`} className={buttonClass({ variant: "outline" })}>
+                  <Download className="size-4" aria-hidden /> Markdown
                 </a>
               </>
             )}
@@ -87,7 +87,7 @@ export default function BriefingPage() {
               <Plus className="size-4" aria-hidden /> {briefing ? "Nova versão" : "Gerar briefing"}
             </Button>
             {briefing && (
-              <Button onClick={() => save.mutate()} loading={save.isPending}>
+              <Button onClick={() => save.mutate()} disabled={!dirty} loading={save.isPending}>
                 Salvar
               </Button>
             )}

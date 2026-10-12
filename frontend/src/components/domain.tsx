@@ -112,10 +112,9 @@ export function FindingItem({ finding, actions, selected, onSelect }: { finding:
   const Icon = DIMENSIONS[finding.dimensao].icon;
   return (
     <div
-      onClick={onSelect}
       className={cn(
-        "rounded-md border px-3 py-2.5 transition-colors",
-        onSelect && "cursor-pointer",
+        "relative rounded-md border px-3 py-2.5 transition-colors",
+        onSelect && "cursor-pointer has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand",
         selected ? "border-brand bg-brand/5" : "border-border bg-surface hover:bg-surface-2",
         finding.status_revisao === "descartado" && "opacity-55",
       )}
@@ -123,7 +122,15 @@ export function FindingItem({ finding, actions, selected, onSelect }: { finding:
       <div className="flex items-start gap-2">
         <Icon className="mt-0.5 size-4 shrink-0 text-muted" strokeWidth={1.75} aria-label={finding.dimensao_nome} />
         <div className="min-w-0 flex-1">
-          <p className={cn("font-medium leading-snug", finding.status_revisao === "descartado" && "line-through")}>{finding.titulo}</p>
+          {onSelect ? (
+            // O título é o botão; o ::after estende o clique ao cartão todo (teclado: Tab + Enter)
+            <button type="button" onClick={onSelect} aria-current={selected || undefined}
+              className={cn("text-left font-medium leading-snug outline-none after:absolute after:inset-0 after:rounded-md", finding.status_revisao === "descartado" && "line-through")}>
+              {finding.titulo}
+            </button>
+          ) : (
+            <p className={cn("font-medium leading-snug", finding.status_revisao === "descartado" && "line-through")}>{finding.titulo}</p>
+          )}
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <SeverityBadge severity={finding.severidade} />
             <OriginBadge origin={finding.origem} />
@@ -132,7 +139,7 @@ export function FindingItem({ finding, actions, selected, onSelect }: { finding:
           </div>
           {finding.impacto_negocio && <p className="mt-1.5 line-clamp-2 text-xs text-muted">{finding.impacto_negocio}</p>}
         </div>
-        {actions}
+        {actions && <div className="relative z-10">{actions}</div>}
       </div>
     </div>
   );
